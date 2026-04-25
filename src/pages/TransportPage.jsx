@@ -1,13 +1,35 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 
 export function TransportPage() {
-  const rides = [
-    { id: 1, route: 'Centro -> Universidad', price: '$2.50', time: 'Hoy, 14:00', driver: 'Mario T.', seats: 3 },
-    { id: 2, route: 'Terminal Sur -> Norte', price: '$3.00', time: 'Hoy, 15:30', driver: 'Sofia L.', seats: 1 },
-    { id: 3, route: 'Plaza Mayor -> Aeropuerto', price: '$5.00', time: 'Mañana, 08:00', driver: 'Javier C.', seats: 2 },
-  ];
+  const [rides, setRides] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRides() {
+      // Obtenemos los viajes conectando con su detalle
+      const { data, error } = await supabase
+        .from('offers')
+        .select(`
+          id_offer,
+          description,
+          create_at,
+          users ( frt_name, frt_last_name ),
+          detail_travels ( origin, destination, departure_time, avble_seats )
+        `)
+        .eq('type_offer', 'Transporte')
+        .order('create_at', { ascending: false });
+
+      if (data) {
+        setRides(data);
+      }
+      setLoading(false);
+    }
+    
+    fetchRides();
+  }, []);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -17,16 +39,6 @@ export function TransportPage() {
             <div className="w-16 h-16 rounded-full bg-slate-200 mb-2"></div>
             <h3 className="font-semibold text-slate-800">Mi Perfil</h3>
             <p className="text-sm text-slate-500">Pasajero Frecuente</p>
-          </div>
-          <div className="border-t border-slate-100 pt-3 mt-3">
-            <div className="flex justify-between text-sm text-slate-600 mb-2">
-              <span>Viajes compartidos</span>
-              <span className="font-semibold text-brand-blue">24</span>
-            </div>
-            <div className="flex justify-between text-sm text-slate-600">
-              <span>Calificación media</span>
-              <span className="font-semibold text-brand-blue">4.9 ★</span>
-            </div>
           </div>
           <Button variant="outline" className="w-full mt-4">Ofrecer Viaje</Button>
         </Card>
@@ -52,25 +64,35 @@ export function TransportPage() {
            </div>
         </Card>
 
-        {rides.map(ride => (
-          <Card key={ride.id} className="p-0 hover:shadow-md transition-shadow">
+        {loading ? (
+          <div className="text-center py-10 text-slate-500">Buscando viajes...</div>
+        ) : rides.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-slate-500 mb-2">Aún no hay viajes de transporte registrados.</p>
+            <p className="text-xs text-slate-400">Asegúrate de agregar rutas en tu base de datos vinculando 'offers' con 'detail_travels'.</p>
+          </div>
+        ) : (
+          rides.map(ride => {
+            const user = ride.users;
+            const details = ride.detail_travels?.[0] || {};
+            const driverName = user ? `${user.frt_name} ${user.frt_last_name}` : 'Conductor';
+            const departureTime = details.departure_time ? new Date(details.departure_time).toLocaleString() : 'Fecha por definir';
+
+            return (
+          <Card key={ride.id_offer} className="p-0 hover:shadow-md transition-shadow">
             <div className="p-4 flex space-x-3">
                <div className="w-12 h-12 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
-                 <span className="text-sky-600 font-bold">{ride.driver.charAt(0)}</span>
+                 <span className="text-sky-600 font-bold">{driverName.charAt(0)}</span>
                </div>
                <div className="flex-1">
                  <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-semibold text-slate-900">{ride.route}</h4>
-                      <p className="text-sm text-slate-500 font-medium">{ride.time}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Conductor: {ride.driver} • Asientos disp: {ride.seats}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="bg-sky-100 text-sky-800 text-sm font-bold px-2 py-1 rounded block mb-1">
-                        {ride.price}
-                      </span>
+                      <h4 className="font-semibold text-slate-900">{details.origin || '?'} ➔ {details.destination || '?'}</h4>
+                      <p className="text-sm text-slate-500 font-medium">{departureTime}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Conductor: {driverName} • Asientos disp: {details.avble_seats || 0}</p>
                     </div>
                  </div>
+                 <p className="text-sm text-slate-700 mt-2 line-clamp-2">{ride.description}</p>
                  <div className="mt-4 flex space-x-2">
                    <Button variant="primary">Reservar Asiento</Button>
                    <Button variant="outline">Consultar</Button>
@@ -78,7 +100,7 @@ export function TransportPage() {
                </div>
             </div>
           </Card>
-        ))}
+        )}))}
       </div>
 
       <div className="hidden lg:block lg:col-span-1">
@@ -88,7 +110,7 @@ export function TransportPage() {
               Conduce Seguro
             </h3>
             <p className="text-sm text-slate-700">
-              Todos nuestros conductores pasan por un proceso de verificación de identidad y antecedentes. Para tu seguridad, no compartas datos bancarios por los chats.
+              Todos nuestros conductores pasan por un proceso de verificación de identidad. No compartas datos personales o bancarios en chats.
             </p>
          </Card>
       </div>

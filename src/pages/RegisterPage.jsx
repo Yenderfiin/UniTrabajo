@@ -1,0 +1,169 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabaseClient';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Link, useNavigate } from 'react-router-dom';
+
+export function RegisterPage() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    document: '',
+    frt_name: '',
+    scd_name: '',
+    frt_last_name: '',
+    scd_last_name: '',
+    phne_number: '',
+    user_type: 'Estudiante',
+    id_university: '',
+    email: '',
+    password: ''
+  });
+  const [universities, setUniversities] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  useEffect(() => {
+    async function loadUniversities() {
+      const { data } = await supabase.from('universities').select('*');
+      if (data) setUniversities(data);
+    }
+    loadUniversities();
+  }, []);
+
+  const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg(null);
+    
+    // 1. Auth Signup (guardamos el documento en la metadata)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        data: { document: formData.document, full_name: `${formData.frt_name} ${formData.frt_last_name}` }
+      }
+    });
+
+    if (authError) {
+      setErrorMsg(authError.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Insert into public users table
+    const { error: dbError } = await supabase.from('users').insert([{
+      document: formData.document,
+      frt_name: formData.frt_name,
+      scd_name: formData.scd_name || null,
+      frt_last_name: formData.frt_last_name,
+      scd_last_name: formData.scd_last_name || null,
+      phne_number: formData.phne_number,
+      user_type: formData.user_type,
+      status: 'A',
+      id_university: parseInt(formData.id_university, 10),
+      email: formData.email // Asegúrate de agregar la columna email en Supabase
+    }]);
+
+    if (dbError) {
+      // Si falla la inserción por constraint (ej: misma cédula), mostramos error
+      setErrorMsg("Error guardando perfil en BD: " + dbError.message);
+      setLoading(false);
+      return;
+    }
+
+    navigate('/');
+  };
+
+  return (
+    <Card className="p-8 shadow-2xl border-0 ring-1 ring-slate-200">
+      <h2 className="text-2xl font-bold text-slate-900 mb-2">Crear Cuenta</h2>
+      <p className="text-sm text-slate-500 mb-6">Completa tus datos para unirte a UniTrabajo.</p>
+      
+      {errorMsg && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4 break-words">
+          {errorMsg}
+        </div>
+      )}
+
+      <form onSubmit={handleRegister} className="space-y-4">
+        {/* Document */}
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Documento de Identidad</label>
+          <input type="text" name="document" required value={formData.document} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+        </div>
+        
+        {/* Nombres y Apellidos en grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Primer Nombre</label>
+            <input type="text" name="frt_name" required value={formData.frt_name} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Primer Apellido</label>
+            <input type="text" name="frt_last_name" required value={formData.frt_last_name} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Segundo Nombre</label>
+            <input type="text" name="scd_name" value={formData.scd_name} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Segundo Apellido</label>
+            <input type="text" name="scd_last_name" value={formData.scd_last_name} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+        </div>
+
+        {/* Teléfono y Tipo */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+            <input type="text" name="phne_number" required value={formData.phne_number} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Tipo de Usuario</label>
+            <select name="user_type" value={formData.user_type} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
+              <option value="Estudiante">Estudiante</option>
+              <option value="Externo">Externo</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Universidad */}
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Universidad</label>
+          <select name="id_university" required value={formData.id_university} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
+            <option value="">Selecciona tu universidad</option>
+            {universities.map(u => (
+              <option key={u.id_university} value={u.id_university}>{u.name}</option>
+            ))}
+            {universities.length === 0 && <option value="1">Universidad Nacional (Default)</option>}
+          </select>
+        </div>
+
+        {/* Email y Password */}
+        <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-100">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Correo Electrónico</label>
+            <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Contraseña</label>
+            <input type="password" name="password" required value={formData.password} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          </div>
+        </div>
+        
+        <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+          {loading ? 'Procesando...' : 'Registrarse'}
+        </Button>
+      </form>
+      
+      <div className="mt-4 text-center text-sm text-slate-600">
+        ¿Ya tienes cuenta? <Link to="/login" className="text-brand-blue font-semibold hover:underline">Inicia sesión</Link>
+      </div>
+    </Card>
+  );
+}

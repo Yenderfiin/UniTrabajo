@@ -1,7 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function Navbar({ toggleSidebar }) {
+  const { user, signOut } = useAuth();
+  
+  // Get initial of user's email or name
+  const userInitial = user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U';
+
   return (
     <nav className="sticky top-0 z-40 bg-brand-surface shadow-sm border-b border-slate-200 h-14 flex items-center justify-between px-4 sm:px-6 lg:px-8">
       <div className="flex items-center space-x-6">
@@ -29,10 +35,18 @@ export function Navbar({ toggleSidebar }) {
       </div>
       
       <div className="flex items-center space-x-4">
-        {/* Placeholder for user avatar or login */}
-        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-semibold cursor-pointer">
-          U
+        {/* User avatar */}
+        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-semibold uppercase">
+          {userInitial}
         </div>
+
+        {/* Desktop Logout Button */}
+        <button 
+          onClick={signOut}
+          className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-600 transition-colors"
+        >
+          Cerrar Sesión
+        </button>
 
         {/* Mobile / Sidebar Menu toggle */}
         <button 
