@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Link, useNavigate } from 'react-router-dom';
 
+const INSTITUTIONAL_DOMAIN = 'edu.co';
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -18,6 +20,7 @@ export function RegisterPage() {
     email: '',
     password: ''
   });
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [universities, setUniversities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -34,9 +37,28 @@ export function RegisterPage() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMsg(null);
-    
+
+    // Validación: correo institucional
+    if (!formData.email.endsWith(INSTITUTIONAL_DOMAIN)) {
+      setErrorMsg(`El correo debe ser institucional (terminar en ${INSTITUTIONAL_DOMAIN}).`);
+      return;
+    }
+
+    // Validación: confirmación de contraseña
+    if (formData.password !== confirmPassword) {
+      setErrorMsg('Las contraseñas no coinciden. Por favor, verifícalas.');
+      return;
+    }
+
+    // Validación: longitud mínima de contraseña
+    if (formData.password.length < 6) {
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    setLoading(true);
+
     // 1. Auth Signup (guardamos el documento en la metadata)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formData.email,
@@ -47,7 +69,12 @@ export function RegisterPage() {
     });
 
     if (authError) {
-      setErrorMsg(authError.message);
+      // Mensaje de error en español para correo ya existente
+      if (authError.message.toLowerCase().includes('already registered') || authError.message.toLowerCase().includes('user already')) {
+        setErrorMsg('Ya existe una cuenta registrada con este correo electrónico.');
+      } else {
+        setErrorMsg(authError.message);
+      }
       setLoading(false);
       return;
     }
@@ -63,11 +90,10 @@ export function RegisterPage() {
       user_type: formData.user_type,
       status: 'A',
       id_university: parseInt(formData.id_university, 10),
-      email: formData.email // Asegúrate de agregar la columna email en Supabase
+      email: formData.email
     }]);
 
     if (dbError) {
-      // Si falla la inserción por constraint (ej: misma cédula), mostramos error
       setErrorMsg("Error guardando perfil en BD: " + dbError.message);
       setLoading(false);
       return;
@@ -75,6 +101,10 @@ export function RegisterPage() {
 
     navigate('/app');
   };
+
+  // Derivar si el email ya tiene el dominio incorrecto para mostrar pista en tiempo real
+  const emailHasWrongDomain = formData.email.length > 0 && formData.email.includes('@') && !formData.email.endsWith(INSTITUTIONAL_DOMAIN);
+  const passwordMismatch = confirmPassword.length > 0 && formData.password !== confirmPassword;
 
   return (
     <Card className="p-8 shadow-2xl border-0 ring-1 ring-slate-200">
@@ -153,15 +183,61 @@ export function RegisterPage() {
           </select>
         </div>
 
-        {/* Email y Password */}
+        {/* Correo Institucional */}
+        <div className="border-t border-slate-100 pt-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Correo Institucional
+              <span className="ml-1.5 font-normal text-slate-400">({INSTITUTIONAL_DOMAIN})</span>
+            </label>
+            <input 
+              type="email" 
+              name="email" 
+              required 
+              value={formData.email} 
+              onChange={handleChange} 
+              placeholder={`usuario${INSTITUTIONAL_DOMAIN}`}
+              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${
+                emailHasWrongDomain ? 'border-red-300 bg-red-50' : 'border-slate-200'
+              }`} 
+            />
+            {emailHasWrongDomain && (
+              <p className="mt-1 text-xs text-red-500">
+                El correo debe terminar en {INSTITUTIONAL_DOMAIN}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Contraseña y Confirmación */}
         <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-100">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Correo Electrónico</label>
-            <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+            <label className="block text-xs font-medium text-slate-700 mb-1">Contraseña</label>
+            <input 
+              type="password" 
+              name="password" 
+              required 
+              value={formData.password} 
+              onChange={handleChange} 
+              placeholder="Mín. 6 caracteres"
+              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" 
+            />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Contraseña</label>
-            <input type="password" name="password" required value={formData.password} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+            <label className="block text-xs font-medium text-slate-700 mb-1">Confirmar Contraseña</label>
+            <input 
+              type="password" 
+              required
+              value={confirmPassword} 
+              onChange={(e) => setConfirmPassword(e.target.value)} 
+              placeholder="Repite tu contraseña"
+              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${
+                passwordMismatch ? 'border-red-300 bg-red-50' : 'border-slate-200'
+              }`}
+            />
+            {passwordMismatch && (
+              <p className="mt-1 text-xs text-red-500">Las contraseñas no coinciden</p>
+            )}
           </div>
         </div>
         
