@@ -26,7 +26,7 @@ export function ResetPasswordPage() {
     } else {
       setMessage('Contraseña actualizada correctamente. Redirigiendo...');
       setTimeout(() => {
-        navigate('/');
+        navigate('/app');
       }, 2000);
     }
     setLoading(false);

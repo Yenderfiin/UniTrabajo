@@ -73,11 +73,20 @@ export function RegisterPage() {
       return;
     }
 
-    navigate('/');
+    navigate('/app');
   };
 
   return (
     <Card className="p-8 shadow-2xl border-0 ring-1 ring-slate-200">
+      <Link 
+        to="/" 
+        className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors mb-5 group"
+      >
+        <svg className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver al inicio
+      </Link>
       <h2 className="text-2xl font-bold text-slate-900 mb-2">Crear Cuenta</h2>
       <p className="text-sm text-slate-500 mb-6">Completa tus datos para unirte a UniTrabajo.</p>
       

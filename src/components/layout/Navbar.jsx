@@ -1,63 +1,173 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function Navbar({ toggleSidebar }) {
   const { user, signOut } = useAuth();
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Detectar si estamos en la landing page para usar el tema oscuro
+  const isLandingPage = location.pathname === '/';
   
   // Get initial of user's email or name
   const userInitial = user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U';
 
-  return (
-    <nav className="sticky top-0 z-40 bg-brand-surface shadow-sm border-b border-slate-200 h-14 flex items-center justify-between px-4 sm:px-6 lg:px-8">
-      <div className="flex items-center space-x-6">
-        <span className="text-brand-blue font-bold text-2xl tracking-tighter cursor-pointer">UniTrabajo</span>
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  // 1. ESTADO AUTENTICADO
+  if (user) {
+    return (
+      <nav className="sticky top-0 z-40 bg-brand-surface shadow-sm border-b border-slate-200 h-14 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center space-x-6">
+          <Link to="/app" className="text-brand-blue font-bold text-2xl tracking-tighter cursor-pointer">
+            UniTrabajo
+          </Link>
+          
+          <div className="hidden md:flex space-x-1">
+            <NavLink
+              to="/app"
+              end
+              className={({ isActive }) => 
+                `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
+              }
+            >
+              Micro-trabajos
+            </NavLink>
+            <NavLink
+              to="/app/transporte"
+              className={({ isActive }) => 
+                `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
+              }
+            >
+              Transporte Compartido
+            </NavLink>
+          </div>
+        </div>
         
-        <div className="hidden md:flex space-x-1">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) => 
-              `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
-            }
+        <div className="flex items-center space-x-4">
+          {/* User avatar */}
+          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-semibold uppercase">
+            {userInitial}
+          </div>
+
+          {/* Desktop Logout Button */}
+          <button 
+            onClick={signOut}
+            className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-600 transition-colors cursor-pointer"
           >
-            Micro-trabajos
-          </NavLink>
-          <NavLink
-            to="/transporte"
-            className={({ isActive }) => 
-              `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
-            }
+            Cerrar Sesión
+          </button>
+
+          {/* Mobile / Sidebar Menu toggle */}
+          <button 
+            onClick={toggleSidebar}
+            className="text-slate-500 hover:text-slate-900 p-2 focus:outline-none cursor-pointer"
           >
-            Transporte Compartido
-          </NavLink>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
-      </div>
-      
-      <div className="flex items-center space-x-4">
-        {/* User avatar */}
-        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-semibold uppercase">
-          {userInitial}
+      </nav>
+    );
+  }
+
+  // 2. ESTADO PÚBLICO (VISITANTE)
+  return (
+    <nav className={`sticky top-0 z-40 w-full transition-all duration-200 border-b ${
+      isLandingPage 
+        ? 'bg-slate-900/80 border-slate-800 text-white backdrop-blur-md' 
+        : 'bg-white/80 border-slate-200 text-slate-900 backdrop-blur-md'
+    }`}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        
+        {/* Brand Logo */}
+        <Link to="/" className="flex items-center space-x-2">
+          <span className={`font-black text-2xl tracking-tighter ${
+            isLandingPage 
+              ? 'text-white bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400' 
+              : 'text-brand-blue'
+          }`}>
+            UniTrabajo
+          </span>
+        </Link>
+
+        {/* Desktop Buttons */}
+        <div className="hidden md:flex items-center space-x-4">
+          <Link 
+            to="/login" 
+            className={`text-sm font-bold px-4 py-2 transition-colors ${
+              isLandingPage ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Iniciar Sesión
+          </Link>
+          <Link 
+            to="/register" 
+            className={`text-sm font-bold px-4 py-2 rounded-full transition-all duration-200 ${
+              isLandingPage 
+                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
+                : 'bg-brand-blue hover:bg-brand-blue-hover text-white'
+            }`}
+          >
+            Registrarse
+          </Link>
         </div>
 
-        {/* Desktop Logout Button */}
-        <button 
-          onClick={signOut}
-          className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-600 transition-colors"
-        >
-          Cerrar Sesión
-        </button>
+        {/* Hamburger Mobile Menu Toggle */}
+        <div className="md:hidden flex items-center">
+          <button 
+            onClick={toggleMobileMenu} 
+            className={`p-2 focus:outline-none rounded-md ${
+              isLandingPage ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <svg className="h-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isMobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
 
-        {/* Mobile / Sidebar Menu toggle */}
-        <button 
-          onClick={toggleSidebar}
-          className="text-slate-500 hover:text-slate-900 p-2 focus:outline-none"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
       </div>
+
+      {/* Mobile Menu Panel */}
+      {isMobileMenuOpen && (
+        <div className={`md:hidden px-4 pt-2 pb-4 border-t transition-all duration-200 ${
+          isLandingPage 
+            ? 'bg-slate-900 border-slate-800 text-slate-300' 
+            : 'bg-white border-slate-200 text-slate-600'
+        }`}>
+          <div className="flex flex-col space-y-3">
+            <Link 
+              to="/login" 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`text-sm font-bold py-2 ${
+                isLandingPage ? 'hover:text-white' : 'hover:text-slate-900'
+              }`}
+            >
+              Iniciar Sesión
+            </Link>
+            <Link 
+              to="/register" 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`text-sm font-bold py-2.5 px-4 rounded-full text-center ${
+                isLandingPage 
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                  : 'bg-brand-blue hover:bg-brand-blue-hover text-white'
+              }`}
+            >
+              Registrarse
+            </Link>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

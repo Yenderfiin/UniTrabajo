@@ -17,10 +17,11 @@ export function MicroJobsPage() {
           description,
           create_at,
           status,
-          users ( frt_name, frt_last_name ),
+          users!document_employer ( frt_name, frt_last_name ),
           job_details ( category, payment, hours )
         `)
-        .eq('type_offer', 'Micro-trabajo')
+        .in('type_offer', ['Trabajo', 'Tutoría', 'Mensajería'])
+        .eq('status', 'Pendiente')
         .order('create_at', { ascending: false });
 
       if (data) {
@@ -68,7 +69,7 @@ export function MicroJobsPage() {
         ) : (
           jobs.map(job => {
             const user = job.users;
-            const details = job.job_details?.[0] || {}; // Maneja relación de uno a muchos como arreglo
+            const details = job.job_details || {}; // Relación de uno a uno en la BD
             const employerName = user ? `${user.frt_name} ${user.frt_last_name}` : 'Usuario Anónimo';
             
             return (

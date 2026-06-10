@@ -16,10 +16,12 @@ export function TransportPage() {
           id_offer,
           description,
           create_at,
-          users ( frt_name, frt_last_name ),
-          detail_travels ( origin, destination, departure_time, avble_seats )
+          status,
+          users!document_employer ( frt_name, frt_last_name ),
+          detail_travels ( origin, destination, departure_time, avaliable_seats )
         `)
         .eq('type_offer', 'Transporte')
+        .eq('status', 'Pendiente')
         .order('create_at', { ascending: false });
 
       if (data) {
@@ -74,7 +76,7 @@ export function TransportPage() {
         ) : (
           rides.map(ride => {
             const user = ride.users;
-            const details = ride.detail_travels?.[0] || {};
+            const details = ride.detail_travels || {}; // Relación de uno a uno en la BD
             const driverName = user ? `${user.frt_name} ${user.frt_last_name}` : 'Conductor';
             const departureTime = details.departure_time ? new Date(details.departure_time).toLocaleString() : 'Fecha por definir';
 
@@ -89,7 +91,7 @@ export function TransportPage() {
                     <div>
                       <h4 className="font-semibold text-slate-900">{details.origin || '?'} ➔ {details.destination || '?'}</h4>
                       <p className="text-sm text-slate-500 font-medium">{departureTime}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Conductor: {driverName} • Asientos disp: {details.avble_seats || 0}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Conductor: {driverName} • Asientos disp: {details.avaliable_seats || 0}</p>
                     </div>
                  </div>
                  <p className="text-sm text-slate-700 mt-2 line-clamp-2">{ride.description}</p>
