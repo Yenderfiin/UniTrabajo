@@ -61,7 +61,15 @@ export function RightSidebar({ isOpen, onClose }) {
           </div>
 
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Navegación</span>
-          <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Mi Perfil</a>
+          <NavLink
+            to="/app/perfil"
+            onClick={onClose}
+            className={({ isActive }) => 
+              `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+            }
+          >
+            Mi Perfil
+          </NavLink>
           <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Mis Tareas</a>
           <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Historial de Viajes</a>
           <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Mensajes</a>

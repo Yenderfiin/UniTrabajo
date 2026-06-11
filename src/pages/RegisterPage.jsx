@@ -39,8 +39,9 @@ export function RegisterPage() {
     e.preventDefault();
     setErrorMsg(null);
 
-    // Validación: correo institucional
-    if (!formData.email.endsWith(INSTITUTIONAL_DOMAIN)) {
+    // Validación: correo institucional (solo para Estudiantes)
+    const isStudent = formData.user_type === 'Estudiante';
+    if (isStudent && !formData.email.endsWith(INSTITUTIONAL_DOMAIN)) {
       setErrorMsg(`El correo debe ser institucional (terminar en ${INSTITUTIONAL_DOMAIN}).`);
       return;
     }
@@ -89,7 +90,7 @@ export function RegisterPage() {
       phne_number: formData.phne_number,
       user_type: formData.user_type,
       status: 'A',
-      id_university: parseInt(formData.id_university, 10),
+      id_university: isStudent ? parseInt(formData.id_university, 10) : null,
       email: formData.email
     }]);
 
@@ -102,8 +103,9 @@ export function RegisterPage() {
     navigate('/app');
   };
 
-  // Derivar si el email ya tiene el dominio incorrecto para mostrar pista en tiempo real
-  const emailHasWrongDomain = formData.email.length > 0 && formData.email.includes('@') && !formData.email.endsWith(INSTITUTIONAL_DOMAIN);
+  // Derivar si el email tiene dominio incorrecto (solo aplica a Estudiantes)
+  const isStudent = formData.user_type === 'Estudiante';
+  const emailHasWrongDomain = isStudent && formData.email.length > 0 && formData.email.includes('@') && !formData.email.endsWith(INSTITUTIONAL_DOMAIN);
   const passwordMismatch = confirmPassword.length > 0 && formData.password !== confirmPassword;
 
   return (
@@ -171,24 +173,28 @@ export function RegisterPage() {
           </div>
         </div>
 
-        {/* Universidad */}
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">Universidad</label>
-          <select name="id_university" required value={formData.id_university} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
-            <option value="">Selecciona tu universidad</option>
-            {universities.map(u => (
-              <option key={u.id_university} value={u.id_university}>{u.name}</option>
-            ))}
-            {universities.length === 0 && <option value="1">Universidad Nacional (Default)</option>}
-          </select>
-        </div>
+        {/* Universidad - solo para Estudiantes */}
+        {isStudent && (
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Universidad</label>
+            <select name="id_university" required={isStudent} value={formData.id_university} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue">
+              <option value="">Selecciona tu universidad</option>
+              {universities.map(u => (
+                <option key={u.id_university} value={u.id_university}>{u.name}</option>
+              ))}
+              {universities.length === 0 && <option value="1">Universidad Nacional (Default)</option>}
+            </select>
+          </div>
+        )}
 
-        {/* Correo Institucional */}
+        {/* Correo Electrónico */}
         <div className="border-t border-slate-100 pt-4">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
-              Correo Institucional
-              <span className="ml-1.5 font-normal text-slate-400">({INSTITUTIONAL_DOMAIN})</span>
+              {isStudent ? 'Correo Institucional' : 'Correo Electrónico'}
+              {isStudent && (
+                <span className="ml-1.5 font-normal text-slate-400">({INSTITUTIONAL_DOMAIN})</span>
+              )}
             </label>
             <input 
               type="email" 
@@ -196,7 +202,7 @@ export function RegisterPage() {
               required 
               value={formData.email} 
               onChange={handleChange} 
-              placeholder={`usuario${INSTITUTIONAL_DOMAIN}`}
+              placeholder={isStudent ? `usuario${INSTITUTIONAL_DOMAIN}` : 'tu@correo.com'}
               className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${
                 emailHasWrongDomain ? 'border-red-300 bg-red-50' : 'border-slate-200'
               }`} 
