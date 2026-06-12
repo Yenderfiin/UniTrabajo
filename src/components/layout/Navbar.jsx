@@ -43,14 +43,14 @@ export function Navbar({ toggleSidebar }) {
             >
               Micro-trabajos
             </NavLink>
-            {/* <NavLink
-              to="/app/transporte"
+            <NavLink
+              to="/app/mensajes"
               className={({ isActive }) => 
                 `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
               }
             >
-              Transporte Compartido
-            </NavLink> */}
+              Mensajes
+            </NavLink>
           </div>
         </div>
         

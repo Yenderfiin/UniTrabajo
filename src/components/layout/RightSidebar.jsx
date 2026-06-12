@@ -89,6 +89,15 @@ export function RightSidebar({ isOpen, onClose }) {
             Mis Postulaciones
           </NavLink>
           <NavLink
+            to="/app/mensajes"
+            onClick={onClose}
+            className={({ isActive }) => 
+              `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+            }
+          >
+            Mensajes
+          </NavLink>
+          <NavLink
             to="/app/notificaciones"
             onClick={onClose}
             className={({ isActive }) => 
@@ -97,10 +106,6 @@ export function RightSidebar({ isOpen, onClose }) {
           >
             Notificaciones
           </NavLink>
-          {/* <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Mis Tareas</a>
-          <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Historial de Viajes</a>
-          <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Mensajes</a>
-          <a href="#" className="block px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md">Configuración</a> */}
         </nav>
         
         <div className="p-4 border-t border-slate-200">

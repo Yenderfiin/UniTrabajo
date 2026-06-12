@@ -15,6 +15,7 @@ import { MyOffersPage } from './pages/MyOffersPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { MyApplicationsPage } from './pages/MyApplicationsPage';
+import { MessagesPage } from './pages/MessagesPage';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
               <Route path="perfil" element={<ProfilePage />} />
               <Route path="mis-vacantes" element={<MyOffersPage />} />
               <Route path="notificaciones" element={<NotificationsPage />} />
+              <Route path="mensajes" element={<MessagesPage />} />
               <Route path="mis-postulaciones" element={<MyApplicationsPage />} />
             </Route>
           </Route>

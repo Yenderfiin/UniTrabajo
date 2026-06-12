@@ -289,7 +289,7 @@ export function NotificationsPage() {
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm leading-relaxed ${isUnread ? 'text-slate-900 font-medium' : 'text-slate-600'}`}>
-                            {notif.message}
+                            {notif.mensajes || notif.message}
                           </p>
                           <div className="flex items-center gap-3 mt-2">
                             <p className="text-xs text-slate-400 flex items-center gap-1">

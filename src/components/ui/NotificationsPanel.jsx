@@ -289,7 +289,7 @@ export function NotificationsPanel({ isOpen, onClose, onUnreadCountChange }) {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm leading-relaxed ${isUnread ? 'text-slate-900 font-medium' : 'text-slate-600'}`}>
-                        {notif.message}
+                        {notif.mensajes || notif.message}
                       </p>
                       <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
