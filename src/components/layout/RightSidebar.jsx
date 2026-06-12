@@ -80,6 +80,15 @@ export function RightSidebar({ isOpen, onClose }) {
             Mis Vacantes
           </NavLink>
           <NavLink
+            to="/app/mis-postulaciones"
+            onClick={onClose}
+            className={({ isActive }) => 
+              `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+            }
+          >
+            Mis Postulaciones
+          </NavLink>
+          <NavLink
             to="/app/notificaciones"
             onClick={onClose}
             className={({ isActive }) => 

@@ -14,6 +14,7 @@ import { LandingPage } from './pages/LandingPage';
 import { MyOffersPage } from './pages/MyOffersPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { MyApplicationsPage } from './pages/MyApplicationsPage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
               <Route path="perfil" element={<ProfilePage />} />
               <Route path="mis-vacantes" element={<MyOffersPage />} />
               <Route path="notificaciones" element={<NotificationsPage />} />
+              <Route path="mis-postulaciones" element={<MyApplicationsPage />} />
             </Route>
           </Route>
         </Routes>
