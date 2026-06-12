@@ -12,6 +12,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { LandingPage } from './pages/LandingPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               <Route index element={<MicroJobsPage />} />
               <Route path="transporte" element={<TransportPage />} />
               <Route path="perfil" element={<ProfilePage />} />
+              <Route path="notificaciones" element={<NotificationsPage />} />
             </Route>
           </Route>
         </Routes>

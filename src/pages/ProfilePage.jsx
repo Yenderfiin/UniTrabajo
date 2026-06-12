@@ -17,7 +17,12 @@ export function ProfilePage() {
     phne_number: '',
     email: '',
     user_type: '',
-    document: ''
+    document: '',
+    description: '',
+    hasVehicle: false,
+    vehicleType: '',
+    vehiclePlate: '',
+    vehicleCapacity: ''
   });
   
   const [loading, setLoading] = useState(true);
@@ -25,6 +30,7 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [rating, setRating] = useState({ average: 0, count: 0 });
 
   useEffect(() => {
     async function loadProfile() {
@@ -48,8 +54,44 @@ export function ProfilePage() {
             phne_number: data.phne_number || '',
             email: data.email || '',
             user_type: data.user_type || '',
-            document: data.document || ''
+            document: data.document || '',
+            description: data.description || '',
+            hasVehicle: false,
+            vehicleType: '',
+            vehiclePlate: '',
+            vehicleCapacity: ''
           });
+
+          // Fetch vehicle data
+          const { data: vehicleData } = await supabase
+            .from('vehicles')
+            .select('*')
+            .eq('document', data.document)
+            .maybeSingle();
+
+          if (vehicleData) {
+            setFormData(prev => ({
+              ...prev,
+              hasVehicle: true,
+              vehicleType: vehicleData.type || '',
+              vehiclePlate: vehicleData.plate || '',
+              vehicleCapacity: vehicleData.capacity || ''
+            }));
+          }
+
+          // Fetch user ratings
+          const { data: ratingsData } = await supabase
+            .from('ratings')
+            .select('score')
+            .eq('document_rated', data.document);
+
+          if (ratingsData) {
+            const count = ratingsData.length;
+            const average = count > 0 
+              ? (ratingsData.reduce((sum, r) => sum + r.score, 0) / count).toFixed(1) 
+              : 0;
+            setRating({ average: Number(average), count });
+          }
         } else {
           setErrorMsg('No se encontró el perfil en la base de datos. Por favor, completa tus datos.');
           // Pre-llenar con lo que tengamos de Auth
@@ -59,7 +101,11 @@ export function ProfilePage() {
             document: user.user_metadata?.document || '',
             frt_name: user.user_metadata?.full_name?.split(' ')[0] || '',
             frt_last_name: user.user_metadata?.full_name?.split(' ')[1] || '',
-            user_type: 'Estudiante' // Valor por defecto
+            user_type: 'Estudiante', // Valor por defecto
+            hasVehicle: false,
+            vehicleType: '',
+            vehiclePlate: '',
+            vehicleCapacity: ''
           }));
           setIsEditing(true); // Forzar modo edición para que puedan crearlo
         }
@@ -75,7 +121,8 @@ export function ProfilePage() {
   }, [user]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleUpdate = async (e) => {
@@ -105,10 +152,54 @@ export function ProfilePage() {
           email: formData.email,
           user_type: formData.user_type,
           status: 'A', // Campo obligatorio en la BD
-          id_university: 1 // Solo hay una universidad por el momento
+          id_university: 1, // Solo hay una universidad por el momento
+          description: formData.description || null
         }, { onConflict: 'document' });
 
       if (dbError) throw dbError;
+
+      // Vehicle management
+      const { data: currentVehicles } = await supabase
+        .from('vehicles')
+        .select('plate')
+        .eq('document', formData.document);
+
+      if (formData.hasVehicle) {
+        if (!formData.vehiclePlate || !formData.vehicleType) {
+          throw new Error("Por favor, ingresa la placa y el tipo de vehículo.");
+        }
+        
+        // Formatear la placa: quitar guiones, espacios y asegurar mayúsculas (max 6 caracteres)
+        const formattedPlate = formData.vehiclePlate.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 6);
+        
+        // Capacidad automática: 3 para Carro, 1 para Moto
+        const autoCapacity = formData.vehicleType === 'Carro' ? 3 : 1;
+        
+        const { error: vehicleError } = await supabase
+          .from('vehicles')
+          .upsert({
+            document: formData.document,
+            plate: formattedPlate,
+            type: formData.vehicleType,
+            capacity: autoCapacity
+          }, { onConflict: 'plate' });
+          
+        if (vehicleError) {
+          if (vehicleError.code === '23505') throw new Error("Esta placa ya está registrada por otro usuario.");
+          throw vehicleError;
+        }
+
+        if (currentVehicles) {
+          const oldPlates = currentVehicles.map(v => v.plate).filter(p => p !== formattedPlate);
+          if (oldPlates.length > 0) {
+            await supabase.from('vehicles').delete().in('plate', oldPlates);
+          }
+        }
+      } else {
+        if (currentVehicles && currentVehicles.length > 0) {
+          await supabase.from('vehicles').delete().eq('document', formData.document);
+        }
+      }
 
       // 2. Si el correo cambió, actualizar en auth
       if (formData.email !== user.email) {
@@ -146,7 +237,18 @@ export function ProfilePage() {
     <div className="max-w-3xl mx-auto py-6">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Mi Perfil</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Mi Perfil</h1>
+            {formData.document && (
+              <div className="flex items-center bg-yellow-50 px-2.5 py-1 rounded-full border border-yellow-200" title="Tu calificación basada en valoraciones de otros usuarios">
+                <svg className="w-4 h-4 text-yellow-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span className="font-bold text-yellow-700">{rating.average}</span>
+                <span className="text-xs text-yellow-600 ml-1">({rating.count} {rating.count === 1 ? 'valoración' : 'valoraciones'})</span>
+              </div>
+            )}
+          </div>
           <p className="mt-2 text-sm text-slate-500">Administra tu información personal y datos de contacto.</p>
         </div>
         {!isEditing && (
@@ -296,6 +398,78 @@ export function ProfilePage() {
               </div>
             </div>
           </div>
+
+          <div className="pt-2">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Perfil Profesional</h3>
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Descripción y Habilidades</label>
+              <textarea 
+                name="description" 
+                rows="4"
+                disabled={!isEditing}
+                value={formData.description} 
+                onChange={handleChange} 
+                placeholder="Escribe un poco sobre ti, tus fortalezas, experiencia y las habilidades que ofreces..."
+                className={`w-full border rounded-lg px-4 py-3 text-sm transition-shadow resize-y ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`} 
+              />
+              <p className="mt-1.5 text-xs text-slate-500">Menciona tus habilidades clave aquí para que otros usuarios puedan encontrarlas fácilmente.</p>
+            </div>
+          </div>
+
+          {isStudent && (
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-4 mt-4">
+              <h3 className="text-lg font-semibold text-slate-800">Información de Vehículo</h3>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="hasVehicle"
+                  checked={formData.hasVehicle}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                  className="w-4 h-4 text-brand-blue border-slate-300 rounded focus:ring-brand-blue"
+                />
+                <span className="text-sm font-medium text-slate-700">Poseo vehículo (Conductor)</span>
+              </label>
+            </div>
+
+            {formData.hasVehicle && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Tipo de Vehículo</label>
+                  <select
+                    name="vehicleType"
+                    required={formData.hasVehicle}
+                    disabled={!isEditing}
+                    value={formData.vehicleType}
+                    onChange={handleChange}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm transition-shadow ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                  >
+                    <option value="">Selecciona tipo</option>
+                    <option value="Carro">Carro</option>
+                    <option value="Moto">Moto</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Placa</label>
+                  <input
+                    type="text"
+                    name="vehiclePlate"
+                    required={formData.hasVehicle}
+                    disabled={!isEditing}
+                    value={formData.vehiclePlate}
+                    onChange={handleChange}
+                    placeholder="Ej. ABC123"
+                    maxLength="7"
+                    className={`w-full border rounded-lg px-3 py-2 text-sm transition-shadow uppercase ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          )}
+
 
           {isEditing && (
             <div className="pt-6 border-t border-slate-100 flex justify-end space-x-3">
