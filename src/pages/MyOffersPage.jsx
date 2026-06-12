@@ -27,6 +27,58 @@ export function MyOffersPage() {
     date: ''
   });
 
+  // Estados para eliminar vacante
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingOffer, setDeletingOffer] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState(null);
+
+  const handleOpenDelete = (offer, e) => {
+    if (e) e.stopPropagation();
+    setDeletingOffer(offer);
+    setDeleteMsg(null);
+    setIsDeleteModalOpen(true);
+    setSelectedOffer(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingOffer) return;
+    setIsDeleting(true);
+    setDeleteMsg(null);
+    try {
+      // 1. Eliminar postulaciones (FK apn_ofr_fk → offers)
+      const { error: appsError } = await supabase
+        .from('aplications')
+        .delete()
+        .eq('id_offer', deletingOffer.id_offer);
+      if (appsError) throw appsError;
+
+      // 2. Eliminar job_details (FK → offers)
+      const { error: detailsError } = await supabase
+        .from('job_details')
+        .delete()
+        .eq('id_offer', deletingOffer.id_offer);
+      if (detailsError) throw detailsError;
+
+      // 3. Eliminar la oferta
+      const { error: offerError } = await supabase
+        .from('offers')
+        .delete()
+        .eq('id_offer', deletingOffer.id_offer);
+      if (offerError) throw offerError;
+
+      setIsDeleteModalOpen(false);
+      setDeletingOffer(null);
+      setDeleteMsg({ type: 'success', text: '¡Vacante eliminada exitosamente!' });
+      fetchMyOffers();
+    } catch (error) {
+      console.error(error);
+      setDeleteMsg({ type: 'error', text: error.message || 'Error al eliminar la vacante.' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleOpenEdit = (offer, e) => {
     if (e) e.stopPropagation();
     const details = offer.job_details || {};
@@ -231,6 +283,16 @@ export function MyOffersPage() {
                       </button>
                       <button
                         type="button"
+                        className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-md hover:bg-red-50 transition-colors hover:cursor-pointer"
+                        onClick={(e) => handleOpenDelete(offer, e)}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Eliminar
+                      </button>
+                      <button
+                        type="button"
                         className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium px-2 py-1 rounded-md hover:bg-slate-50 transition-colors hover:cursor-pointer"
                         onClick={() => setSelectedOffer(offer)}
                       >
@@ -348,6 +410,16 @@ export function MyOffersPage() {
                 <Button variant="outline" className="flex-1" onClick={() => setSelectedOffer(null)}>
                   Regresar al listado
                 </Button>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1.5 text-sm text-red-500 hover:text-red-700 font-medium px-4 py-2 rounded-xl border border-red-200 hover:bg-red-50 transition-colors"
+                  onClick={(e) => handleOpenDelete(offer, e)}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Eliminar
+                </button>
                 <Button variant="primary" className="flex-1 gap-1.5" onClick={(e) => handleOpenEdit(offer, e)}>
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -492,6 +564,115 @@ export function MyOffersPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast de éxito/error post-eliminación ── */}
+      {deleteMsg && !isDeleteModalOpen && (
+        <div
+          className={`fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium transition-all duration-300
+            ${
+              deleteMsg.type === 'success'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}
+        >
+          {deleteMsg.type === 'success' ? (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {deleteMsg.text}
+          <button onClick={() => setDeleteMsg(null)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* ── Modal: Confirmar Eliminación ── */}
+      {isDeleteModalOpen && deletingOffer && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => !isDeleting && setIsDeleteModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            style={{ animation: 'slideUp 0.25s ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header rojo */}
+            <div className="bg-gradient-to-r from-red-500 to-rose-500 px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Eliminar Vacante</h2>
+                <p className="text-red-100 text-xs">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-slate-700 text-sm leading-relaxed">
+                ¿Estás seguro de que deseas eliminar la vacante de{' '}
+                <span className="font-semibold text-slate-900">
+                  {deletingOffer.job_details?.category || 'Trabajo General'}
+                </span>?
+              </p>
+              <p className="text-slate-500 text-xs mt-2">
+                Se eliminará permanentemente de la base de datos junto con todos sus detalles.
+              </p>
+
+              {deleteMsg?.type === 'error' && (
+                <div className="mt-3 bg-red-50 text-red-600 text-xs p-3 rounded-lg border border-red-200">
+                  {deleteMsg.text}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Sí, eliminar
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

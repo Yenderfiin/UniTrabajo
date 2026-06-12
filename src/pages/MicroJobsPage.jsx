@@ -69,6 +69,7 @@ export function MicroJobsPage() {
         description,
         create_at,
         status,
+        document_employer,
         users!document_employer ( frt_name, frt_last_name ),
         job_details ( category, payment, hours )
       `)
@@ -225,6 +226,7 @@ export function MicroJobsPage() {
 
   const handleApplyJob = async (job) => {
     if (!userDoc || userType !== 'Estudiante') return;
+    if (job.document_employer === userDoc) return; // No puede postularse a su propia vacante
 
     setIsApplying(true);
     try {
@@ -535,7 +537,7 @@ export function MicroJobsPage() {
                     </button>
                   </div>
 
-                  {userType === 'Estudiante' && (
+                  {userType === 'Estudiante' && job.document_employer !== userDoc && (
                     <div className="mt-4 flex space-x-2" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="primary"
@@ -544,12 +546,16 @@ export function MicroJobsPage() {
                       >
                         {myApplications.includes(job.id_offer) ? 'Ya postulado' : 'Aplicar al trabajo'}
                       </Button>
-                      {/* <Button
-                        variant="outline"
-                        onClick={() => alert('Función de chat en desarrollo.')}
-                      >
-                        Mensaje
-                      </Button> */}
+                    </div>
+                  )}
+                  {userType === 'Estudiante' && job.document_employer === userDoc && (
+                    <div className="mt-4" onClick={(e) => e.stopPropagation()}>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Tu vacante publicada
+                      </span>
                     </div>
                   )}
                 </div>
@@ -718,7 +724,7 @@ export function MicroJobsPage() {
                 <Button variant="outline" className="flex-1" onClick={() => setSelectedJob(null)}>
                   Regresar al listado
                 </Button>
-                {userType === 'Estudiante' && (
+                {userType === 'Estudiante' && job.document_employer !== userDoc && (
                   <Button
                     variant="primary"
                     className="flex-1 gap-1.5"
@@ -741,6 +747,14 @@ export function MicroJobsPage() {
                     )}
                     {myApplications.includes(job.id_offer) ? 'Ya postulado' : isApplying ? 'Postulando...' : 'Postularme'}
                   </Button>
+                )}
+                {userType === 'Estudiante' && job.document_employer === userDoc && (
+                  <span className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Tu vacante publicada
+                  </span>
                 )}
               </div>
             </div>
