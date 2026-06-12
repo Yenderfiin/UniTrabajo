@@ -11,6 +11,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { LandingPage } from './pages/LandingPage';
+import { MyOffersPage } from './pages/MyOffersPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NotificationsPage } from './pages/NotificationsPage';
 
@@ -36,6 +37,7 @@ function App() {
               <Route index element={<MicroJobsPage />} />
               <Route path="transporte" element={<TransportPage />} />
               <Route path="perfil" element={<ProfilePage />} />
+              <Route path="mis-vacantes" element={<MyOffersPage />} />
               <Route path="notificaciones" element={<NotificationsPage />} />
             </Route>
           </Route>

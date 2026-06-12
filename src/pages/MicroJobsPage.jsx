@@ -3,6 +3,14 @@ import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import {
+  formatDate,
+  formatPayment,
+  getCategoryIcon,
+  getCategoryColor,
+  getEmployerName,
+  getInitials
+} from '../utils/helpers';
 
 const CATEGORIES = [
   'Todas',
@@ -263,59 +271,7 @@ export function MicroJobsPage() {
     }
   };
 
-  // Helpers
-  const getEmployerName = (job) => {
-    const employer = job.users;
-    return employer ? `${employer.frt_name} ${employer.frt_last_name}` : 'Usuario Anónimo';
-  };
 
-  const getInitials = (name) => {
-    return name.split(' ').map(n => n.charAt(0)).join('').substring(0, 2).toUpperCase();
-  };
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffHours < 1) return 'Hace unos minutos';
-    if (diffHours < 24) return `Hace ${diffHours}h`;
-    if (diffDays < 7) return `Hace ${diffDays}d`;
-    return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
-  const formatPayment = (amount) => {
-    if (!amount) return 'A convenir';
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount);
-  };
-
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'Limpieza': '🧹',
-      'Mantenimiento': '🔧',
-      'Asesoría': '📚',
-      'Tecnología': '💻',
-      'Mensajería': '📦',
-      'Ayuda con tareas': '✏️',
-      'Otro': '📋',
-    };
-    return icons[category] || '💼';
-  };
-
-  const getCategoryColor = (category) => {
-    const colors = {
-      'Limpieza': { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', ring: 'ring-cyan-400' },
-      'Mantenimiento': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-400' },
-      'Asesoría': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-400' },
-      'Tecnología': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-400' },
-      'Mensajería': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', ring: 'ring-orange-400' },
-      'Ayuda con tareas': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-400' },
-      'Otro': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', ring: 'ring-slate-400' },
-    };
-    return colors[category] || colors['Otro'];
-  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative">
@@ -564,12 +520,19 @@ export function MicroJobsPage() {
                         {details.hours}h estimadas
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1 text-xs text-slate-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-slate-400 ml-auto opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedJob(job);
+                      }}
+                    >
                       Ver detalle
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
-                    </span>
+                    </button>
                   </div>
 
                   {userType === 'Estudiante' && (
@@ -581,12 +544,12 @@ export function MicroJobsPage() {
                       >
                         {myApplications.includes(job.id_offer) ? 'Ya postulado' : 'Aplicar al trabajo'}
                       </Button>
-                      <Button
+                      {/* <Button
                         variant="outline"
                         onClick={() => alert('Función de chat en desarrollo.')}
                       >
                         Mensaje
-                      </Button>
+                      </Button> */}
                     </div>
                   )}
                 </div>
@@ -753,7 +716,7 @@ export function MicroJobsPage() {
               {/* Footer */}
               <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setSelectedJob(null)}>
-                  Cerrar
+                  Regresar al listado
                 </Button>
                 {userType === 'Estudiante' && (
                   <Button
