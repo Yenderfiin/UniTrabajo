@@ -365,7 +365,7 @@ export function TransportRouteDetailPage() {
                 onClick={handleReserve}
                 className="mt-4 w-full"
               >
-                {reserving ? 'Procesando...' : hasExistingReservation ? 'Ya reservaste esta ruta' : !hasAvailableSeats ? 'Sin puestos disponibles' : !user?.email ? 'Inicia sesión para reservar' : 'Reservar puesto'}
+                {reserving ? 'Procesando...' : hasExistingReservation ? 'Ya reservaste esta ruta' : !hasAvailableSeats ? 'Sin puestos disponibles' : 'Reservar puesto'}
               </Button>
             )}
 

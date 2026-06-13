@@ -33,6 +33,7 @@ export function TransportPage() {
     notes: ''
   });
   const [reservationStates, setReservationStates] = useState({});
+  const [userReservations, setUserReservations] = useState(new Set());
 
   const vehicleCapacity = Number(userVehicle?.capacity || 0);
   const canPublishRoute = Boolean(userDoc && userVehicle);
@@ -76,14 +77,7 @@ export function TransportPage() {
 
     try {
       // Verificar si ya tiene una reserva
-      const { data: existingApp } = await supabase
-        .from('aplications')
-        .select('id_offer')
-        .eq('id_offer', offerId)
-        .eq('document', currentUserDoc)
-        .maybeSingle();
-
-      if (existingApp) {
+      if (userReservations.has(offerId)) {
         setReservationStates(prev => ({
           ...prev,
           [offerId]: { reserving: false, message: { type: 'error', text: 'Ya tienes una reserva para esta ruta.' } }
@@ -127,6 +121,9 @@ export function TransportPage() {
             : r
         )
       );
+
+      // Agregar a reservas del usuario
+      setUserReservations(prev => new Set([...prev, offerId]));
 
       setReservationStates(prev => ({
         ...prev,
@@ -194,6 +191,7 @@ export function TransportPage() {
         setUserDoc('');
         setCurrentUserDoc('');
         setUserVehicle(null);
+        setUserReservations(new Set());
         setProfileLoading(false);
         return;
       }
@@ -223,14 +221,27 @@ export function TransportPage() {
           if (vehicleError) throw vehicleError;
 
           setUserVehicle(vehicleData || null);
+
+          // Cargar reservas existentes del usuario
+          const { data: existingReservations, error: reservError } = await supabase
+            .from('aplications')
+            .select('id_offer')
+            .eq('document', userDocument);
+
+          if (!reservError && existingReservations) {
+            const reservationSet = new Set(existingReservations.map(r => r.id_offer));
+            setUserReservations(reservationSet);
+          }
         } else {
           setUserVehicle(null);
+          setUserReservations(new Set());
         }
       } catch (error) {
         console.error('Error loading transport profile:', error);
         setUserDoc('');
         setCurrentUserDoc('');
         setUserVehicle(null);
+        setUserReservations(new Set());
       } finally {
         setProfileLoading(false);
       }
@@ -588,10 +599,10 @@ export function TransportPage() {
                       {!isOwnRide ? (
                         <Button
                           variant="primary"
-                          disabled={!hasAvailableSeats || reservationState.reserving || !user?.email}
+                          disabled={!hasAvailableSeats || reservationState.reserving || userReservations.has(ride.id_offer)}
                           onClick={() => handleReserveFromList(ride)}
                         >
-                          {reservationState.reserving ? 'Procesando...' : !hasAvailableSeats ? 'Sin puestos' : !user?.email ? 'Inicia sesión' : 'Reservar Asiento'}
+                          {reservationState.reserving ? 'Procesando...' : userReservations.has(ride.id_offer) ? 'Reservado' : !hasAvailableSeats ? 'Sin puestos' : 'Reservar Asiento'}
                         </Button>
                       ) : (
                         <Button variant="outline" disabled className="opacity-60">
