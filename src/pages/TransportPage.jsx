@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -6,6 +7,7 @@ import { Button } from '../components/ui/Button';
 
 export function TransportPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const destinationOptions = ['Universidad sede Algodonal', 'Universidad sede Primavera'];
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -443,10 +445,16 @@ export function TransportPage() {
                       </div>
                    </div>
                    <p className="text-sm text-slate-700 mt-2 line-clamp-2">{ride.description}</p>
-                    {/* <div className="mt-4 flex space-x-2">
+                    <div className="mt-4 flex space-x-2">
                       <Button variant="primary">Reservar Asiento</Button>
-                      <Button variant="outline">Consultar</Button>
-                    </div> */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate(`/app/transporte/${ride.id_offer}`)}
+                      >
+                        Consultar detalles
+                      </Button>
+                    </div>
                  </div>
               </div>
             </Card>
