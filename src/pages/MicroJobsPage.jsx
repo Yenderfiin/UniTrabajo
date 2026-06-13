@@ -11,6 +11,7 @@ import {
   getEmployerName,
   getInitials
 } from '../utils/helpers';
+import { useNavigate } from 'react-router-dom';
 
 const CATEGORIES = [
   'Todas',
@@ -59,6 +60,7 @@ export function MicroJobsPage() {
 
   // Modal detalle
   const [selectedJob, setSelectedJob] = useState(null);
+  const navigate = useNavigate();
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -723,6 +725,76 @@ export function MicroJobsPage() {
               <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setSelectedJob(null)}>
                   Regresar al listado
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={async () => {
+                    // Iniciar conversación defensiva
+                    try {
+                      if (!userDoc) {
+                        alert('Necesitas completar tu perfil antes de iniciar una conversación.');
+                        return;
+                      }
+
+                      const employerDoc = job.document_employer;
+                      const participantA = employerDoc;
+                      const participantB = userDoc;
+
+                      // Intentar buscar conversación existente en tabla 'conversations'
+                      const { data: existing, error: selErr } = await supabase
+                        .from('conversations')
+                        .select('*')
+                        .or(`(participant_a.eq.${participantA},participant_b.eq.${participantB}),(participant_a.eq.${participantB},participant_b.eq.${participantA})`)
+                        .eq('id_offer', job.id_offer)
+                        .limit(1);
+
+                      if (selErr && selErr.code === '42883') {
+                        // Table not found or function error - fallback
+                      }
+
+                      if (existing && existing.length > 0) {
+                        const conv = existing[0];
+                        navigate(`/app/mensajes?conversation=${conv.id}`);
+                        return;
+                      }
+
+                      // Insert new conversation if table exists
+                      const newConv = {
+                        id: `CONV-${Math.floor(100000 + Math.random() * 900000)}`,
+                        id_offer: job.id_offer,
+                        participant_a: participantA,
+                        participant_b: participantB,
+                        created_at: new Date().toISOString()
+                      };
+
+                      const { data: insertData, error: insertErr } = await supabase
+                        .from('conversations')
+                        .insert(newConv)
+                        .select()
+                        .limit(1);
+
+                      if (insertErr) {
+                        // If table doesn't exist or insert fails, fallback to notify
+                        await supabase.from('notifications').insert({
+                          user_document: employerDoc,
+                          type: 'new_message',
+                          message: `${user?.user_metadata?.full_name || user?.email || 'Un usuario'} desea iniciar una conversación sobre tu oferta ${job.id_offer}`
+                        });
+                        // Redirect to messages module (will show offer-based conversations if applicable)
+                        navigate('/app/mensajes');
+                        return;
+                      }
+
+                      const created = Array.isArray(insertData) ? insertData[0] : insertData;
+                      navigate(`/app/mensajes?conversation=${created.id || created.id_conversation || newConv.id}`);
+                    } catch (err) {
+                      console.error('Error iniciando conversación:', err);
+                      alert('No fue posible iniciar la conversación. Intenta más tarde.');
+                    }
+                  }}
+                >
+                  Enviar mensaje
                 </Button>
                 {userType === 'Estudiante' && job.document_employer !== userDoc && (
                   <Button

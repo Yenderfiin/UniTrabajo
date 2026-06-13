@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { StudentRoute } from './components/layout/StudentRoute';
 import { MicroJobsPage } from './pages/MicroJobsPage';
 import { TransportPage } from './pages/TransportPage';
 import { LoginPage } from './pages/LoginPage';
@@ -37,12 +38,17 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/app" element={<MainLayout />}>
               <Route index element={<MicroJobsPage />} />
-              <Route path="transporte" element={<TransportPage />} />
               <Route path="perfil" element={<ProfilePage />} />
               <Route path="mis-vacantes" element={<MyOffersPage />} />
               <Route path="notificaciones" element={<NotificationsPage />} />
               <Route path="mensajes" element={<MessagesPage />} />
               <Route path="mis-postulaciones" element={<MyApplicationsPage />} />
+            </Route>
+
+            <Route element={<StudentRoute />}>
+              <Route path="/app/transporte" element={<MainLayout />}>
+                <Route index element={<TransportPage />} />
+              </Route>
             </Route>
           </Route>
         </Routes>

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { formatDate, formatPayment, getCategoryIcon, getCategoryColor, parseDescription, buildDescription } from '../utils/helpers';
+import { useNavigate } from 'react-router-dom';
 
 export function MyOffersPage() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export function MyOffersPage() {
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [candidateProfile, setCandidateProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const navigate = useNavigate();
 
   // Estados para la edición de vacantes
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1257,13 +1259,87 @@ export function MyOffersPage() {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl shrink-0">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setSelectedCandidate(null)}
-              >
-                Cerrar Perfil
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      // Obtener documento del usuario actual
+                      const { data: meData, error: meErr } = await supabase
+                        .from('users')
+                        .select('document')
+                        .eq('email', user.email)
+                        .single();
+
+                      if (meErr) throw meErr;
+                      const myDoc = meData?.document;
+                      const otherDoc = candidateProfile?.user?.document || selectedCandidate?.document;
+                      const offerId = selectedCandidate?.id_offer || null;
+
+                      if (!myDoc) {
+                        alert('Completa tu perfil antes de iniciar una conversación.');
+                        return;
+                      }
+
+                      // Buscar conversación existente
+                      const { data: existing } = await supabase
+                        .from('conversations')
+                        .select('*')
+                        .or(`(participant_a.eq.${myDoc},participant_b.eq.${otherDoc}),(participant_a.eq.${otherDoc},participant_b.eq.${myDoc})`)
+                        .eq('id_offer', offerId)
+                        .limit(1);
+
+                      if (existing && existing.length > 0) {
+                        const conv = existing[0];
+                        navigate(`/app/mensajes?conversation=${conv.id}`);
+                        return;
+                      }
+
+                      const newConv = {
+                        id: `CONV-${Math.floor(100000 + Math.random() * 900000)}`,
+                        id_offer: offerId,
+                        participant_a: myDoc,
+                        participant_b: otherDoc,
+                        created_at: new Date().toISOString()
+                      };
+
+                      const { data: insertData, error: insertErr } = await supabase
+                        .from('conversations')
+                        .insert(newConv)
+                        .select()
+                        .limit(1);
+
+                      if (insertErr) {
+                        // Fallback: notificar al otro
+                        await supabase.from('notifications').insert({
+                          user_document: otherDoc,
+                          type: 'new_message',
+                          message: `${user?.user_metadata?.full_name || user?.email || 'Un usuario'} desea iniciar una conversación.`
+                        });
+                        navigate('/app/mensajes');
+                        return;
+                      }
+
+                      const created = Array.isArray(insertData) ? insertData[0] : insertData;
+                      navigate(`/app/mensajes?conversation=${created.id || created.id_conversation || newConv.id}`);
+                    } catch (err) {
+                      console.error('Error iniciando conversación:', err);
+                      alert('No fue posible iniciar la conversación.');
+                    }
+                  }}
+                >
+                  Enviar mensaje
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setSelectedCandidate(null)}
+                >
+                  Cerrar Perfil
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function RightSidebar({ isOpen, onClose }) {
-  const { signOut } = useAuth();
+  const { signOut, userType } = useAuth();
 
   const handleLogout = async () => {
     onClose();
@@ -49,15 +49,17 @@ export function RightSidebar({ isOpen, onClose }) {
             >
               Micro-trabajos
             </NavLink>
-            <NavLink
-              to="/app/transporte"
-              onClick={onClose}
-              className={({ isActive }) => 
-                `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
-              }
-            >
-              Transporte Compartido
-            </NavLink>
+            {userType === 'Estudiante' && (
+              <NavLink
+                to="/app/transporte"
+                onClick={onClose}
+                className={({ isActive }) => 
+                  `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+                }
+              >
+                Transporte Compartido
+              </NavLink>
+            )}
           </div>
 
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Navegación</span>
@@ -69,6 +71,15 @@ export function RightSidebar({ isOpen, onClose }) {
             }
           >
             Mi Perfil
+          </NavLink>
+          <NavLink
+            to="/app/transporte"
+            onClick={onClose}
+            className={({ isActive }) => 
+              `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+            }
+          >
+            Transporte Compartido
           </NavLink>
           <NavLink
             to="/app/mis-vacantes"
