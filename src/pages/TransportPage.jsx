@@ -13,6 +13,7 @@ export function TransportPage() {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userDoc, setUserDoc] = useState('');
+  const [currentUserDoc, setCurrentUserDoc] = useState('');
   const [userVehicle, setUserVehicle] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [originFilter, setOriginFilter] = useState('');
@@ -31,9 +32,128 @@ export function TransportPage() {
     seats: '',
     notes: ''
   });
+  const [reservationStates, setReservationStates] = useState({});
 
   const vehicleCapacity = Number(userVehicle?.capacity || 0);
   const canPublishRoute = Boolean(userDoc && userVehicle);
+
+  const handleReserveFromList = async (ride) => {
+    const offerId = ride.id_offer;
+
+    if (!user?.email) {
+      setReservationStates(prev => ({
+        ...prev,
+        [offerId]: { reserving: false, message: { type: 'error', text: 'Debes estar autenticado para reservar.' } }
+      }));
+      return;
+    }
+
+    const details = ride.detail_travels || {};
+    const driverDoc = ride.document_employer;
+    const hasAvailableSeats = (details.avaliable_seats || 0) > 0;
+    const isOwnRide = currentUserDoc && driverDoc === currentUserDoc;
+
+    if (isOwnRide) {
+      setReservationStates(prev => ({
+        ...prev,
+        [offerId]: { reserving: false, message: { type: 'error', text: 'No puedes reservar una ruta que tú mismo publicaste.' } }
+      }));
+      return;
+    }
+
+    if (!hasAvailableSeats) {
+      setReservationStates(prev => ({
+        ...prev,
+        [offerId]: { reserving: false, message: { type: 'error', text: 'No hay puestos disponibles en esta ruta.' } }
+      }));
+      return;
+    }
+
+    setReservationStates(prev => ({
+      ...prev,
+      [offerId]: { reserving: true, message: { type: '', text: '' } }
+    }));
+
+    try {
+      // Verificar si ya tiene una reserva
+      const { data: existingApp } = await supabase
+        .from('aplications')
+        .select('id_offer')
+        .eq('id_offer', offerId)
+        .eq('document', currentUserDoc)
+        .maybeSingle();
+
+      if (existingApp) {
+        setReservationStates(prev => ({
+          ...prev,
+          [offerId]: { reserving: false, message: { type: 'error', text: 'Ya tienes una reserva para esta ruta.' } }
+        }));
+        return;
+      }
+
+      // Crear la reserva
+      const { error: appError } = await supabase.from('aplications').insert({
+        id_offer: offerId,
+        document: currentUserDoc,
+        app_status: 'Pendiente'
+      });
+
+      if (appError) throw new Error('No se pudo crear la reserva.');
+
+      // Actualizar puestos disponibles
+      const newAvailableSeats = (details.avaliable_seats || 1) - 1;
+      const { error: updateError } = await supabase
+        .from('detail_travels')
+        .update({ avaliable_seats: newAvailableSeats })
+        .eq('id_offer', offerId);
+
+      if (updateError) throw new Error('No se pudo actualizar los puestos disponibles.');
+
+      // Crear notificación al conductor
+      await supabase.from('notifications').insert({
+        user_document: driverDoc,
+        type: 'new_travel_reservation',
+        message: `Alguien ha reservado un puesto en tu ruta de ${details.origin} a ${details.destination}.`
+      });
+
+      // Actualizar la lista de viajes con los puestos reducidos
+      setRides(prevRides =>
+        prevRides.map(r =>
+          r.id_offer === offerId
+            ? {
+                ...r,
+                detail_travels: { ...r.detail_travels, avaliable_seats: newAvailableSeats }
+              }
+            : r
+        )
+      );
+
+      setReservationStates(prev => ({
+        ...prev,
+        [offerId]: {
+          reserving: false,
+          message: { type: 'success', text: '¡Reserva confirmada! Tu puesto ha sido asegurado.' }
+        }
+      }));
+
+      // Limpiar el mensaje después de 4 segundos
+      setTimeout(() => {
+        setReservationStates(prev => ({
+          ...prev,
+          [offerId]: { reserving: false, message: { type: '', text: '' } }
+        }));
+      }, 4000);
+    } catch (err) {
+      console.error('Error en la reserva:', err);
+      setReservationStates(prev => ({
+        ...prev,
+        [offerId]: {
+          reserving: false,
+          message: { type: 'error', text: err.message || 'No se pudo procesar tu reserva. Intenta nuevamente.' }
+        }
+      }));
+    }
+  };
 
   const fetchRides = async () => {
     setLoading(true);
@@ -45,6 +165,7 @@ export function TransportPage() {
         description,
         create_at,
         status,
+        document_employer,
         users!document_employer ( frt_name, frt_last_name ),
         detail_travels ( origin, destination, departure_time, avaliable_seats )
       `)
@@ -71,6 +192,7 @@ export function TransportPage() {
     async function fetchUserContext() {
       if (!user?.email) {
         setUserDoc('');
+        setCurrentUserDoc('');
         setUserVehicle(null);
         setProfileLoading(false);
         return;
@@ -87,13 +209,15 @@ export function TransportPage() {
 
         if (userError) throw userError;
 
-        setUserDoc(userData?.document || '');
+        const userDocument = userData?.document || '';
+        setUserDoc(userDocument);
+        setCurrentUserDoc(userDocument);
 
-        if (userData?.document) {
+        if (userDocument) {
           const { data: vehicleData, error: vehicleError } = await supabase
             .from('vehicles')
             .select('type, plate, capacity')
-            .eq('document', userData.document)
+            .eq('document', userDocument)
             .maybeSingle();
 
           if (vehicleError) throw vehicleError;
@@ -105,6 +229,7 @@ export function TransportPage() {
       } catch (error) {
         console.error('Error loading transport profile:', error);
         setUserDoc('');
+        setCurrentUserDoc('');
         setUserVehicle(null);
       } finally {
         setProfileLoading(false);
@@ -429,6 +554,9 @@ export function TransportPage() {
               const details = ride.detail_travels || {}; // Relación de uno a uno en la BD
               const driverName = user ? `${user.frt_name} ${user.frt_last_name}` : 'Conductor';
               const departureTime = details.departure_time ? new Date(details.departure_time).toLocaleString() : 'Fecha por definir';
+              const reservationState = reservationStates[ride.id_offer] || { reserving: false, message: { type: '', text: '' } };
+              const hasAvailableSeats = (details.avaliable_seats || 0) > 0;
+              const isOwnRide = currentUserDoc && ride.document_employer === currentUserDoc;
 
               return (
             <Card key={ride.id_offer} className="p-0 hover:shadow-md transition-shadow">
@@ -441,12 +569,35 @@ export function TransportPage() {
                       <div>
                         <h4 className="font-semibold text-slate-900">{details.origin || '?'} ➔ {details.destination || '?'}</h4>
                         <p className="text-sm text-slate-500 font-medium">{departureTime}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Conductor: {driverName} • Asientos disp: {details.avaliable_seats || 0}</p>
+                        <p className={`text-xs mt-0.5 ${hasAvailableSeats ? 'text-slate-400' : 'text-rose-600 font-medium'}`}>Conductor: {driverName} • Asientos disp: {details.avaliable_seats || 0}</p>
                       </div>
                    </div>
                    <p className="text-sm text-slate-700 mt-2 line-clamp-2">{ride.description}</p>
-                    <div className="mt-4 flex space-x-2">
-                      <Button variant="primary">Reservar Asiento</Button>
+                   
+                   {reservationState.message.text && (
+                     <div className={`mt-3 rounded-lg px-3 py-2 text-xs font-medium ${
+                       reservationState.message.type === 'success'
+                         ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                         : 'border border-rose-200 bg-rose-50 text-rose-700'
+                     }`}>
+                       {reservationState.message.text}
+                     </div>
+                   )}
+
+                    <div className="mt-3 flex space-x-2">
+                      {!isOwnRide ? (
+                        <Button
+                          variant="primary"
+                          disabled={!hasAvailableSeats || reservationState.reserving || !user?.email}
+                          onClick={() => handleReserveFromList(ride)}
+                        >
+                          {reservationState.reserving ? 'Procesando...' : !hasAvailableSeats ? 'Sin puestos' : !user?.email ? 'Inicia sesión' : 'Reservar Asiento'}
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled className="opacity-60">
+                          Tu ruta
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="outline"
