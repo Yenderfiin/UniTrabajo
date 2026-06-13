@@ -53,14 +53,14 @@ export function Navbar({ toggleSidebar }) {
                 Transporte Compartido
               </NavLink>
             )}
-            <NavLink
+            {/* <NavLink
               to="/app/mensajes"
               className={({ isActive }) => 
                 `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
               }
             >
               Mensajes
-            </NavLink>
+            </NavLink> */}
           </div>
         </div>
         

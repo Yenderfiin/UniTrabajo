@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 
 export function TransportPage() {
   const { user } = useAuth();
+  const destinationOptions = ['Universidad sede Algodonal', 'Universidad sede Primavera'];
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -173,7 +174,8 @@ export function TransportPage() {
         origin: publishForm.origin.trim(),
         destination: publishForm.destination.trim(),
         departure_time: new Date(publishForm.departureTime).toISOString(),
-        avaliable_seats: seats
+        avaliable_seats: seats,
+        plate: userVehicle.plate
       });
 
       if (travelError) {
@@ -285,9 +287,7 @@ export function TransportPage() {
             Encuentra y gestiona ofertas de transporte universitario entre estudiantes de forma rápida y segura.
           </p>
         </div>
-        <Button variant="outline" className="md:self-start" onClick={handleOpenPublishModal} disabled={profileLoading || !canPublishRoute}>
-          Ofrecer Viaje
-        </Button>
+    
       </section>
 
       {(publishError || publishSuccess) && (
@@ -443,10 +443,10 @@ export function TransportPage() {
                       </div>
                    </div>
                    <p className="text-sm text-slate-700 mt-2 line-clamp-2">{ride.description}</p>
-                    <div className="mt-4 flex space-x-2">
+                    {/* <div className="mt-4 flex space-x-2">
                       <Button variant="primary">Reservar Asiento</Button>
                       <Button variant="outline">Consultar</Button>
-                    </div>
+                    </div> */}
                  </div>
               </div>
             </Card>
@@ -515,15 +515,20 @@ export function TransportPage() {
 
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                   Destino
-                  <input
-                    type="text"
+                  <select
                     name="destination"
                     value={publishForm.destination}
                     onChange={handlePublishInputChange}
-                    placeholder="Campus, barrio o dirección de llegada"
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-blue"
                     required
-                  />
+                  >
+                    <option value="">Selecciona una sede</option>
+                    {destinationOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
 
