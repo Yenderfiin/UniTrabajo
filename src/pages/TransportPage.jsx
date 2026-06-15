@@ -458,6 +458,9 @@ export function TransportPage() {
             <Button variant="outline" className="w-full mt-4" onClick={handleOpenPublishModal} disabled={profileLoading || !canPublishRoute}>
               Ofrecer Viaje
             </Button>
+            <Button variant="outline" className="w-full mt-2" onClick={() => navigate('/app/transporte/mis-rutas')} disabled={profileLoading}>
+              Mis Rutas
+            </Button>
           </Card>
         </div>
 

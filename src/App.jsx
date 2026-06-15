@@ -18,6 +18,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { MyApplicationsPage } from './pages/MyApplicationsPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { TransportRouteDetailPage } from './pages/TransportRouteDetailPage';
+import { MyTransportRoutesPage } from './pages/MyTransportRoutesPage';
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
             <Route element={<StudentRoute />}>
               <Route path="/app/transporte" element={<MainLayout />}>
                 <Route index element={<TransportPage />} />
+                <Route path="mis-rutas" element={<MyTransportRoutesPage />} />
                 <Route path=":offerId" element={<TransportRouteDetailPage />} />
               </Route>
             </Route>
