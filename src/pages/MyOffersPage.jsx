@@ -71,6 +71,7 @@ export function MyOffersPage() {
   // Estados para calificar trabajador (HU-058)
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [ratingOffer, setRatingOffer] = useState(null);
+  const [ratedWorker, setRatedWorker] = useState(null);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [ratingMsg, setRatingMsg] = useState(null);
   const [ratingFormData, setRatingFormData] = useState({
@@ -416,6 +417,24 @@ export function MyOffersPage() {
     setIsRatingModalOpen(true);
     setSelectedOffer(null);
 
+    // Cargar datos del trabajador
+    try {
+      const { data: workerData, error: workerError } = await supabase
+        .from('users')
+        .select('document, frt_name, scd_name, frt_last_name, scd_last_name')
+        .eq('document', offer.document_employee)
+        .single();
+
+      if (workerError) {
+        console.error('[HU-058] Error al cargar datos del trabajador:', workerError);
+        setRatedWorker(null);
+      } else if (workerData) {
+        setRatedWorker(workerData);
+      }
+    } catch (err) {
+      console.error('[HU-058] Error al cargar trabajador:', err);
+    }
+
     // Verificar si ya existe una calificación
     try {
       const { data: userData } = await supabase
@@ -520,6 +539,7 @@ export function MyOffersPage() {
       setExistingRating(null);
       setTimeout(() => {
         setIsRatingModalOpen(false);
+        setRatedWorker(null);
         fetchMyOffers();
       }, 2000);
     } catch (error) {
@@ -638,6 +658,8 @@ export function MyOffersPage() {
         description,
         create_at,
         status,
+        document_employer,
+        document_employee,
         job_details ( category, payment, hours )
       `)
       .eq('document_employer', userData.document)
@@ -1855,7 +1877,7 @@ export function MyOffersPage() {
       {isRatingModalOpen && ratingOffer && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={() => !isSubmittingRating && setIsRatingModalOpen(false)}
+          onClick={() => !isSubmittingRating && (setIsRatingModalOpen(false), setRatedWorker(null))}
         >
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
@@ -1865,7 +1887,10 @@ export function MyOffersPage() {
             {/* Header */}
             <div className="relative bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-5 rounded-t-2xl">
               <button
-                onClick={() => !isSubmittingRating && setIsRatingModalOpen(false)}
+                onClick={() => {
+                  setIsRatingModalOpen(false);
+                  setRatedWorker(null);
+                }}
                 className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors disabled:opacity-50"
                 disabled={isSubmittingRating}
               >
@@ -1893,10 +1918,14 @@ export function MyOffersPage() {
               {/* Información del trabajador */}
               <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold shrink-0">
-                  {ratingOffer.document_employee ? ratingOffer.document_employee.substring(0, 2).toUpperCase() : 'WK'}
+                  {ratedWorker?.frt_name ? ratedWorker.frt_name.substring(0, 1).toUpperCase() : 'WK'}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Documento del trabajador</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {ratedWorker
+                      ? `${ratedWorker.frt_name || ''} ${ratedWorker.scd_name ? ratedWorker.scd_name + ' ' : ''}${ratedWorker.frt_last_name || ''} ${ratedWorker.scd_last_name || ''}`.trim()
+                      : 'Trabajador'}
+                  </p>
                   <p className="text-xs text-slate-500 font-mono">{ratingOffer.document_employee}</p>
                 </div>
               </div>
@@ -1986,7 +2015,10 @@ export function MyOffersPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setIsRatingModalOpen(false)}
+                onClick={() => {
+                  setIsRatingModalOpen(false);
+                  setRatedWorker(null);
+                }}
                 disabled={isSubmittingRating}
               >
                 Cancelar
