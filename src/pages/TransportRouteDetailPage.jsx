@@ -154,6 +154,7 @@ export function TransportRouteDetailPage() {
   const hasRating = rating.count > 0;
   const isOwnRide = currentUserDoc && driver.document === currentUserDoc;
   const hasAvailableSeats = (details.avaliable_seats || 0) > 0;
+  const isClosedRoute = (ride?.status || '').toLowerCase() === 'cerrada';
 
   const handleReserve = async () => {
     if (!user?.email) {
@@ -163,6 +164,11 @@ export function TransportRouteDetailPage() {
 
     if (isOwnRide) {
       setReservationMessage({ type: 'error', text: 'No puedes reservar una ruta que tú mismo publicaste.' });
+      return;
+    }
+
+    if (isClosedRoute) {
+      setReservationMessage({ type: 'error', text: 'Esta ruta ya está cerrada y no acepta nuevas reservas.' });
       return;
     }
 
@@ -181,13 +187,17 @@ export function TransportRouteDetailPage() {
 
     try {
       // Crear la reserva
-      const { error: appError } = await supabase.from('aplications').insert({
+      const { error: appError, data: appData } = await supabase.from('aplications').insert({
         id_offer: offerId,
         document: currentUserDoc,
         app_status: 'Pendiente'
-      });
+      }).select();
 
-      if (appError) throw new Error('No se pudo crear la reserva.');
+      if (appError) {
+        console.error('Error detallado de Supabase:', appError);
+        throw new Error(`No se pudo crear la reserva: ${appError.message || appError.details || 'Error desconocido'}`);
+      }
+      console.log('Reserva creada exitosamente:', appData);
 
       // Actualizar puestos disponibles
       const newAvailableSeats = (details.avaliable_seats || 1) - 1;
@@ -361,11 +371,19 @@ export function TransportRouteDetailPage() {
               <Button
                 type="button"
                 variant="primary"
-                disabled={!hasAvailableSeats || hasExistingReservation || reserving || !user?.email}
+                disabled={isClosedRoute || !hasAvailableSeats || hasExistingReservation || reserving || !user?.email}
                 onClick={handleReserve}
                 className="mt-4 w-full"
               >
-                {reserving ? 'Procesando...' : hasExistingReservation ? 'Ya reservaste esta ruta' : !hasAvailableSeats ? 'Sin puestos disponibles' : 'Reservar puesto'}
+                {reserving
+                  ? 'Procesando...'
+                  : isClosedRoute
+                    ? 'Ruta cerrada'
+                    : hasExistingReservation
+                      ? 'Ya reservaste esta ruta'
+                      : !hasAvailableSeats
+                        ? 'Sin puestos disponibles'
+                        : 'Reservar puesto'}
               </Button>
             )}
 

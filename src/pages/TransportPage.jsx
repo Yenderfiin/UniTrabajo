@@ -38,6 +38,12 @@ export function TransportPage() {
   const vehicleCapacity = Number(userVehicle?.capacity || 0);
   const canPublishRoute = Boolean(userDoc && userVehicle);
 
+  // Función para obtener la fecha y hora actual en formato YYYY-MM-DDTHH:mm
+  const getNowDateTime = () => {
+    const now = new Date();
+    return now.toISOString().slice(0, 16);
+  };
+
   const handleReserveFromList = async (ride) => {
     const offerId = ride.id_offer;
 
@@ -86,13 +92,17 @@ export function TransportPage() {
       }
 
       // Crear la reserva
-      const { error: appError } = await supabase.from('aplications').insert({
+      const { error: appError, data: appData } = await supabase.from('aplications').insert({
         id_offer: offerId,
         document: currentUserDoc,
         app_status: 'Pendiente'
-      });
+      }).select();
 
-      if (appError) throw new Error('No se pudo crear la reserva.');
+      if (appError) {
+        console.error('Error detallado de Supabase:', appError);
+        throw new Error(`No se pudo crear la reserva: ${appError.message || appError.details || 'Error desconocido'}`);
+      }
+      console.log('Reserva creada exitosamente:', appData);
 
       // Actualizar puestos disponibles
       const newAvailableSeats = (details.avaliable_seats || 1) - 1;
@@ -167,7 +177,7 @@ export function TransportPage() {
         detail_travels ( origin, destination, departure_time, avaliable_seats )
       `)
       .eq('type_offer', 'Transporte')
-      .eq('status', 'Pendiente')
+      .neq('status', 'Cerrada')
       .order('create_at', { ascending: false });
 
     if (error) {
@@ -283,6 +293,15 @@ export function TransportPage() {
 
     if (seats > vehicleCapacity) {
       setPublishError(`La cantidad de puestos no puede superar la capacidad registrada de tu vehículo (${vehicleCapacity}).`);
+      return;
+    }
+
+    // Validar que la fecha y hora no sean anteriores a ahora
+    const selectedDateTime = new Date(publishForm.departureTime);
+    const now = new Date();
+    
+    if (selectedDateTime <= now) {
+      setPublishError('La fecha y hora de salida no pueden ser anteriores a la fecha y hora actual.');
       return;
     }
 
@@ -711,6 +730,7 @@ export function TransportPage() {
                   <input
                     type="datetime-local"
                     name="departureTime"
+                    min={getNowDateTime()}
                     value={publishForm.departureTime}
                     onChange={handlePublishInputChange}
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue"

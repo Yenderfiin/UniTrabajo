@@ -29,6 +29,12 @@ export function MyOffersPage() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const navigate = useNavigate();
 
+  // Función para obtener la fecha de hoy en formato YYYY-MM-DD
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   // Estados para la edición de vacantes
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOfferId, setEditingOfferId] = useState(null);
@@ -298,6 +304,17 @@ export function MyOffersPage() {
 
   const handleUpdateOffer = async (e) => {
     e.preventDefault();
+    
+    // Validar que la fecha no sea anterior a hoy
+    const selectedDate = new Date(editFormData.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      setErrorMsg('La fecha del servicio no puede ser anterior a hoy.');
+      return;
+    }
+    
     setIsSubmitting(true);
     setErrorMsg(null);
 
@@ -749,6 +766,7 @@ export function MyOffersPage() {
                     type="date"
                     name="date"
                     required
+                    min={getTodayDate()}
                     value={editFormData.date}
                     onChange={handleEditInputChange}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none transition-all"
