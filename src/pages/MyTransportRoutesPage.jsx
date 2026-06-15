@@ -33,6 +33,12 @@ export function MyTransportRoutesPage() {
   const [passengerProfile, setPassengerProfile] = useState(null);
   const [loadingPassengerProfile, setLoadingPassengerProfile] = useState(false);
 
+  // Estados para finalizar ruta (HU-057)
+  const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+  const [finalizingRoute, setFinalizingRoute] = useState(null);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizeMsg, setFinalizeMsg] = useState(null);
+
   // Función para obtener la fecha y hora actual en formato YYYY-MM-DDTHH:mm
   const getNowDateTime = () => {
     const now = new Date();
@@ -236,6 +242,69 @@ export function MyTransportRoutesPage() {
       setMessage({ type: 'error', text: error.message || 'No se pudo cerrar la ruta.' });
     } finally {
       setIsClosingRoute(false);
+    }
+  };
+
+  // HU-057: Finalizar ruta publicada
+  const handleOpenFinalize = (route) => {
+    setFinalizingRoute(route);
+    setFinalizeMsg(null);
+    setIsFinalizeModalOpen(true);
+  };
+
+  const handleConfirmFinalize = async () => {
+    if (!finalizingRoute) return;
+    setIsFinalizing(true);
+    setFinalizeMsg(null);
+
+    try {
+      // 1. Actualizar el estado de la ruta a 'Finalizada'
+      const { error } = await supabase
+        .from('offers')
+        .update({ status: 'Finalizada' })
+        .eq('id_offer', finalizingRoute.id_offer);
+
+      if (error) throw error;
+
+      // 2. Obtener todos los pasajeros aceptados en esta ruta
+      const { data: acceptedPassengers, error: passengerError } = await supabase
+        .from('aplications')
+        .select('document')
+        .eq('id_offer', finalizingRoute.id_offer)
+        .eq('app_status', 'Aceptada');
+
+      if (passengerError) {
+        console.error('Error fetching passengers:', passengerError);
+      } else if (acceptedPassengers && acceptedPassengers.length > 0) {
+        // 3. Notificar a los pasajeros aceptados
+        const notifications = acceptedPassengers.map(passenger => ({
+          user_document: passenger.document,
+          type: 'travel_finalized',
+          message: `El viaje de ${finalizingRoute.detail_travels?.origin || 'transporte compartido'} a ${finalizingRoute.detail_travels?.destination || 'destino'} ha sido finalizado. Ya puedes proceder con la evaluación mutua.`
+        }));
+        await supabase.from('notifications').insert(notifications);
+      }
+
+      // Actualizar estado local
+      setRoutes(prevRoutes =>
+        prevRoutes.map(route =>
+          route.id_offer === finalizingRoute.id_offer
+            ? { ...route, status: 'Finalizada' }
+            : route
+        )
+      );
+
+      setIsFinalizeModalOpen(false);
+      setFinalizingRoute(null);
+      setFinalizeMsg({ type: 'success', text: '¡Ruta finalizada exitosamente! El proceso de calificación está habilitado.' });
+      
+      // Mostrar mensaje de éxito por 3 segundos
+      setTimeout(() => setFinalizeMsg(null), 3000);
+    } catch (error) {
+      console.error('Error finalizing route:', error);
+      setFinalizeMsg({ type: 'error', text: error.message || 'Error al finalizar la ruta.' });
+    } finally {
+      setIsFinalizing(false);
     }
   };
 
@@ -748,6 +817,16 @@ export function MyTransportRoutesPage() {
                     >
                       {route.status === 'Cerrada' ? 'Ruta cerrada' : 'Cerrar ruta'}
                     </Button>
+                    {route.status === 'Cerrada' && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 text-emerald-600 hover:bg-emerald-50"
+                        onClick={() => handleOpenFinalize(route)}
+                        disabled={route.status !== 'Cerrada' || isFinalizing}
+                      >
+                        {route.status === 'Finalizada' ? 'Ruta finalizada' : 'Finalizar ruta'}
+                      </Button>
+                    )}
                     {deleteConfirm === route.id_offer ? (
                       <>
                         <Button
@@ -1080,6 +1159,91 @@ export function MyTransportRoutesPage() {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* ── Modal: Confirmar Finalización de Ruta (HU-057) ── */}
+      {isFinalizeModalOpen && finalizingRoute && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => !isFinalizing && setIsFinalizeModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            style={{ animation: 'slideUp 0.25s ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header verde */}
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m7 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Finalizar Ruta</h2>
+                <p className="text-emerald-100 text-xs">Habilita el proceso de evaluación mutua</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-slate-700 text-sm leading-relaxed">
+                ¿Estás seguro de que deseas finalizar la ruta de{' '}
+                <span className="font-semibold text-slate-900">
+                  {finalizingRoute.detail_travels?.[0]?.origin || 'origen desconocido'}
+                </span>{' '}
+                a{' '}
+                <span className="font-semibold text-slate-900">
+                  {finalizingRoute.detail_travels?.[0]?.destination || 'destino desconocido'}
+                </span>?
+              </p>
+              <p className="text-slate-500 text-xs mt-2">
+                Una vez finalizada, no se podrán hacer modificaciones. Los pasajeros aceptados recibirán notificación y podrán proceder con la evaluación mutua.
+              </p>
+
+              {finalizeMsg?.type === 'error' && (
+                <div className="mt-3 bg-red-50 text-red-600 text-xs p-3 rounded-lg border border-red-200">
+                  {finalizeMsg.text}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setIsFinalizeModalOpen(false)}
+                disabled={isFinalizing}
+              >
+                Cancelar
+              </Button>
+              <button
+                type="button"
+                disabled={isFinalizing}
+                onClick={handleConfirmFinalize}
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
+              >
+                {isFinalizing ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Finalizando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m7 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Sí, finalizar ruta
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

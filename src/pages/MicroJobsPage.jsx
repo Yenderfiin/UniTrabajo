@@ -245,6 +245,12 @@ export function MicroJobsPage() {
   const handleApplyJob = async (job) => {
     if (!userDoc || userType !== 'Estudiante') return;
     if (job.document_employer === userDoc) return; // No puede postularse a su propia vacante
+    
+    // HU-054: Validar que la vacante no esté cerrada
+    if (job.status !== 'Pendiente') {
+      alert('No puedes postularte a una vacante que no está disponible.');
+      return;
+    }
 
     setIsApplying(true);
     try {
