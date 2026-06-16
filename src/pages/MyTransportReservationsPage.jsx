@@ -194,7 +194,7 @@ export function MyTransportReservationsPage() {
         .eq('document', passengerDoc)
         .maybeSingle();
 
-      if (!validateData || validateData.app_status !== 'Aceptado') {
+      if (!validateData || (validateData.app_status !== 'Aceptado' && validateData.app_status !== 'Aceptada')) {
         throw new Error('Solo pasajeros aceptados pueden calificar.');
       }
 
