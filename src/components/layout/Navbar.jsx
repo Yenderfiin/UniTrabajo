@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { NotificationsPanel } from '../ui/NotificationsPanel';
+import { supabase } from '../../services/supabaseClient';
 
 export function Navbar({ toggleSidebar }) {
   const { user, userType, signOut } = useAuth();
@@ -9,12 +10,84 @@ export function Navbar({ toggleSidebar }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [userDoc, setUserDoc] = useState(null);
+  const msgChannelRef = useRef(null);
+  const isOnMessages = location.pathname === '/app/mensajes';
   
   // Detectar si estamos en la landing page para usar el tema oscuro
   const isLandingPage = location.pathname === '/';
   
   // Get initial of user's email or name
   const userInitial = user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U';
+
+  // ── fetch userDoc for messages badge ────────────────────────────────────
+  useEffect(() => {
+    if (!user?.email) { setUserDoc(null); return; }
+    supabase
+      .from('users')
+      .select('document')
+      .eq('email', user.email)
+      .single()
+      .then(({ data }) => setUserDoc(data?.document ?? null));
+  }, [user]);
+
+  // ── compute + refresh unread messages count ──────────────────────────────
+  useEffect(() => {
+    if (!userDoc) return;
+
+    // When on messages page → mark as visited & hide badge
+    if (isOnMessages) {
+      localStorage.setItem('lastMessagesVisit', new Date().toISOString());
+      setUnreadMessages(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchUnread() {
+      const lastVisit =
+        localStorage.getItem('lastMessagesVisit') ?? new Date(0).toISOString();
+
+      // Step 1: get all my conversation IDs
+      const { data: convRows } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`participant_a.eq.${userDoc},participant_b.eq.${userDoc}`);
+
+      if (!convRows?.length) { if (!cancelled) setUnreadMessages(0); return; }
+
+      // Step 2: count unread messages from others since lastVisit
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .in('conversation_id', convRows.map(c => c.id))
+        .neq('sender_document', userDoc)
+        .gt('created_at', lastVisit);
+
+      if (!cancelled) setUnreadMessages(count ?? 0);
+    }
+
+    fetchUnread();
+
+    // Realtime: re-count on any new message insert
+    if (msgChannelRef.current) supabase.removeChannel(msgChannelRef.current);
+    const ch = supabase
+      .channel('navbar-msg-badge')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        fetchUnread();
+      })
+      .subscribe();
+    msgChannelRef.current = ch;
+
+    return () => {
+      cancelled = true;
+      if (msgChannelRef.current) {
+        supabase.removeChannel(msgChannelRef.current);
+        msgChannelRef.current = null;
+      }
+    };
+  }, [userDoc, isOnMessages]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -56,10 +129,15 @@ export function Navbar({ toggleSidebar }) {
             <NavLink
               to="/app/mensajes"
               className={({ isActive }) => 
-                `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
+                `relative px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
               }
             >
               Mensajes
+              {unreadMessages > 0 && !isOnMessages && (
+                <span className="absolute -top-0.5 -right-1 flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-white bg-rose-500 rounded-full ring-2 ring-white">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
             </NavLink>
           </div>
         </div>

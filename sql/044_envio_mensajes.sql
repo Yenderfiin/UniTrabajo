@@ -3,7 +3,7 @@
 
 create table if not exists public.messages (
   id bigserial primary key,
-  conversation_id bigint not null references public.conversations(id) on delete cascade,
+  conversation_id text not null references public.conversations(id) on delete cascade,
   sender_document varchar(20) not null references public.users(document),
   body text not null,
   created_at timestamptz not null default now(),
