@@ -117,6 +117,15 @@ export function RightSidebar({ isOpen, onClose }) {
           >
             Notificaciones
           </NavLink>
+          <NavLink
+            to="/app/calificaciones"
+            onClick={onClose}
+            className={({ isActive }) => 
+              `block px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-blue-50 text-brand-blue font-medium' : 'text-slate-600 hover:bg-slate-50'}`
+            }
+          >
+            Calificaciones
+          </NavLink>
         </nav>
         
         <div className="p-4 border-t border-slate-200">

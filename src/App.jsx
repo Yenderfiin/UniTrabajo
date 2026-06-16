@@ -20,6 +20,7 @@ import { MessagesPage } from './pages/MessagesPage';
 import { TransportRouteDetailPage } from './pages/TransportRouteDetailPage';
 import { MyTransportRoutesPage } from './pages/MyTransportRoutesPage';
 import { MyTransportReservationsPage } from './pages/MyTransportReservationsPage';
+import { RatingsHistoryPage } from './pages/RatingsHistoryPage';
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
               <Route path="notificaciones" element={<NotificationsPage />} />
               <Route path="mensajes" element={<MessagesPage />} />
               <Route path="mis-postulaciones" element={<MyApplicationsPage />} />
+              <Route path="calificaciones" element={<RatingsHistoryPage />} />
             </Route>
 
             <Route element={<StudentRoute />}>
