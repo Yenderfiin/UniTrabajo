@@ -63,8 +63,7 @@ export function RatingsHistoryPage() {
               scd_last_name
             )
           `)
-          .eq('document_rated', currentUserDoc)
-          .order('offers.create_at', { ascending: false });
+          .eq('document_rated', currentUserDoc);
 
         if (receivedError) throw receivedError;
 
@@ -88,20 +87,31 @@ export function RatingsHistoryPage() {
               scd_last_name
             )
           `)
-          .eq('document_rater', currentUserDoc)
-          .order('offers.create_at', { ascending: false });
+          .eq('document_rater', currentUserDoc);
 
         if (givenError) throw givenError;
 
-        setReceivedRatings(received || []);
-        setGivenRatings(given || []);
+        // Ordenar ambas listas por fecha de oferta (descendente)
+        const sortByOfferDate = (ratings) => {
+          return [...ratings].sort((a, b) => {
+            const dateA = new Date(a.offers?.create_at || 0);
+            const dateB = new Date(b.offers?.create_at || 0);
+            return dateB - dateA;
+          });
+        };
+
+        const sortedReceived = sortByOfferDate(received || []);
+        const sortedGiven = sortByOfferDate(given || []);
+
+        setReceivedRatings(sortedReceived);
+        setGivenRatings(sortedGiven);
 
         // Calcular promedio y conteo de calificaciones recibidas
-        if (received && received.length > 0) {
-          const sum = received.reduce((acc, r) => acc + r.score, 0);
-          const avg = (sum / received.length).toFixed(1);
+        if (sortedReceived && sortedReceived.length > 0) {
+          const sum = sortedReceived.reduce((acc, r) => acc + r.score, 0);
+          const avg = (sum / sortedReceived.length).toFixed(1);
           setAverageScore(Number(avg));
-          setRatingCount(received.length);
+          setRatingCount(sortedReceived.length);
         }
       } catch (err) {
         console.error('[HU-062] Error cargando historial de calificaciones:', err);
