@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -7,6 +8,7 @@ import { formatDate, formatPayment } from '../utils/helpers';
 
 export function MyTransportReservationsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState(null);
@@ -342,8 +344,8 @@ export function MyTransportReservationsPage() {
                     )}
                     <button
                       type="button"
-                      className="ml-auto inline-flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium px-2 py-1 rounded-md hover:bg-slate-50 transition-colors"
-                      onClick={() => setSelectedReservation(reservation)}
+                      className="ml-auto inline-flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium px-2 py-1 rounded-md hover:bg-slate-50 transition-colors hover:cursor-pointer"
+                      onClick={() => navigate(`/app/transporte/${reservation.id_offer}`)}
                     >
                       Ver detalle
                     </button>
