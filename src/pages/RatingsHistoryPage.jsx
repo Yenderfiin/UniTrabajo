@@ -55,12 +55,6 @@ export function RatingsHistoryPage() {
               type_offer,
               description,
               create_at
-            ),
-            users!ratings_document_rater_fkey (
-              frt_name,
-              scd_name,
-              frt_last_name,
-              scd_last_name
             )
           `)
           .eq('document_rated', currentUserDoc);
@@ -79,17 +73,50 @@ export function RatingsHistoryPage() {
               type_offer,
               description,
               create_at
-            ),
-            users!ratings_document_rated_fkey (
-              frt_name,
-              scd_name,
-              frt_last_name,
-              scd_last_name
             )
           `)
           .eq('document_rater', currentUserDoc);
 
         if (givenError) throw givenError;
+
+        // 3. Cargar información de usuarios para ratings recibidas
+        const ratersDocuments = [...new Set((received || []).map(r => r.document_rater))];
+        let ratersData = {};
+        if (ratersDocuments.length > 0) {
+          const { data: raters } = await supabase
+            .from('users')
+            .select('document, frt_name, scd_name, frt_last_name, scd_last_name')
+            .in('document', ratersDocuments);
+          
+          if (raters) {
+            ratersData = Object.fromEntries(raters.map(u => [u.document, u]));
+          }
+        }
+
+        // 4. Cargar información de usuarios para ratings emitidas
+        const ratedDocuments = [...new Set((given || []).map(r => r.document_rated))];
+        let ratedData = {};
+        if (ratedDocuments.length > 0) {
+          const { data: rated } = await supabase
+            .from('users')
+            .select('document, frt_name, scd_name, frt_last_name, scd_last_name')
+            .in('document', ratedDocuments);
+          
+          if (rated) {
+            ratedData = Object.fromEntries(rated.map(u => [u.document, u]));
+          }
+        }
+
+        // 5. Enriquecer datos con información de usuarios
+        const enrichedReceived = (received || []).map(r => ({
+          ...r,
+          rater: ratersData[r.document_rater] || {}
+        }));
+
+        const enrichedGiven = (given || []).map(r => ({
+          ...r,
+          rated: ratedData[r.document_rated] || {}
+        }));
 
         // Ordenar ambas listas por fecha de oferta (descendente)
         const sortByOfferDate = (ratings) => {
@@ -100,8 +127,8 @@ export function RatingsHistoryPage() {
           });
         };
 
-        const sortedReceived = sortByOfferDate(received || []);
-        const sortedGiven = sortByOfferDate(given || []);
+        const sortedReceived = sortByOfferDate(enrichedReceived);
+        const sortedGiven = sortByOfferDate(enrichedGiven);
 
         setReceivedRatings(sortedReceived);
         setGivenRatings(sortedGiven);
@@ -128,9 +155,9 @@ export function RatingsHistoryPage() {
   };
 
   const getOtherPersonName = (rating) => {
-    const users = activeTab === 'received' ? rating.users : rating.users;
-    if (!users) return 'Usuario desconocido';
-    return `${users.frt_name || ''} ${users.scd_name ? users.scd_name + ' ' : ''}${users.frt_last_name || ''} ${users.scd_last_name || ''}`.trim() || 'Usuario anónimo';
+    const userData = activeTab === 'received' ? rating.rater : rating.rated;
+    if (!userData) return 'Usuario desconocido';
+    return `${userData.frt_name || ''} ${userData.scd_name ? userData.scd_name + ' ' : ''}${userData.frt_last_name || ''} ${userData.scd_last_name || ''}`.trim() || 'Usuario anónimo';
   };
 
   const getOfferType = (rating) => {
