@@ -480,6 +480,9 @@ export function TransportPage() {
             <Button variant="outline" className="w-full mt-2" onClick={() => navigate('/app/transporte/mis-rutas')} disabled={profileLoading}>
               Mis Rutas
             </Button>
+            <Button variant="outline" className="w-full mt-2" onClick={() => navigate('/app/transporte/mis-reservas')} disabled={profileLoading}>
+              Mis Reservas
+            </Button>
           </Card>
         </div>
 
