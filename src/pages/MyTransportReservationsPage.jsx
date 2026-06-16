@@ -42,6 +42,8 @@ export function MyTransportReservationsPage() {
         throw new Error('No se pudo encontrar la información de perfil.');
       }
 
+      console.log('[HU-060] Document del usuario:', userData.document);
+
       // 2. Obtener reservas del usuario en rutas de transporte
       const { data, error } = await supabase
         .from('aplications')
@@ -49,7 +51,6 @@ export function MyTransportReservationsPage() {
           id_offer,
           document,
           app_status,
-          created_at,
           offers (
             id_offer,
             description,
@@ -64,17 +65,24 @@ export function MyTransportReservationsPage() {
               departure_time,
               avaliable_seats,
               plate
-            ),
-            job_details ( category, payment, hours )
+            )
           )
         `)
-        .eq('document', userData.document)
-        .order('created_at', { ascending: false });
+        .eq('document', userData.document);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[HU-060] Error en query:', error);
+        throw error;
+      }
 
-      // Filtrar solo rutas de transporte (type_offer = 'Transporte')
-      const transportReservations = (data || []).filter(app => app.offers?.type_offer === 'Transporte');
+      console.log('[HU-060] Todas las aplicaciones:', data);
+
+      // Filtrar solo rutas de transporte y ordenar por fecha de salida
+      const transportReservations = (data || [])
+        .filter(app => app.offers?.type_offer === 'Transporte')
+        .sort((a, b) => new Date(b.offers?.create_at) - new Date(a.offers?.create_at));
+
+      console.log('[HU-060] Reservas de transporte filtradas:', transportReservations);
 
       setReservations(transportReservations);
     } catch (err) {
@@ -298,7 +306,7 @@ export function MyTransportReservationsPage() {
                         {travel.origin || 'Origen'} → {travel.destination || 'Destino'}
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Reservado {formatDate(reservation.created_at)}
+                        Reservado {formatDate(reservation.offers?.create_at)}
                       </p>
                     </div>
                     <span className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${statusColor}`}>
