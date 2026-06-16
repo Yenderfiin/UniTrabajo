@@ -39,6 +39,18 @@ export function MyTransportRoutesPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeMsg, setFinalizeMsg] = useState(null);
 
+  // Estados para calificar pasajero (HU-061)
+  const [isRatingPassengerModalOpen, setIsRatingPassengerModalOpen] = useState(false);
+  const [ratingPassenger, setRatingPassenger] = useState(null);
+  const [ratingPassengerRoute, setRatingPassengerRoute] = useState(null);
+  const [isSubmittingPassengerRating, setIsSubmittingPassengerRating] = useState(false);
+  const [passengerRatingMsg, setPassengerRatingMsg] = useState(null);
+  const [passengerRatingFormData, setPassengerRatingFormData] = useState({
+    score: 5,
+    comment: ''
+  });
+  const [existingPassengerRating, setExistingPassengerRating] = useState(null);
+
   // Función para obtener la fecha y hora actual en formato YYYY-MM-DDTHH:mm
   const getNowDateTime = () => {
     const now = new Date();
@@ -305,6 +317,152 @@ export function MyTransportRoutesPage() {
       setFinalizeMsg({ type: 'error', text: error.message || 'Error al finalizar la ruta.' });
     } finally {
       setIsFinalizing(false);
+    }
+  };
+
+  // HU-061: Abrir modal para calificar pasajero
+  const handleOpenPassengerRating = async (passenger, route, e) => {
+    if (e) e.stopPropagation();
+
+    // Validaciones
+    if (route.status !== 'Finalizada') {
+      alert('La ruta debe estar en estado "Finalizada" para calificar pasajeros.');
+      return;
+    }
+
+    if (!passenger?.document) {
+      alert('No hay información del pasajero registrada.');
+      return;
+    }
+
+    setRatingPassenger(passenger);
+    setRatingPassengerRoute(route);
+    setPassengerRatingFormData({ score: 5, comment: '' });
+    setPassengerRatingMsg(null);
+    setIsRatingPassengerModalOpen(true);
+
+    // Cargar datos del pasajero
+    try {
+      const { data: passengerData, error: passengerError } = await supabase
+        .from('users')
+        .select('document, frt_name, scd_name, frt_last_name, scd_last_name')
+        .eq('document', passenger.document)
+        .single();
+
+      if (passengerError) {
+        console.error('[HU-061] Error al cargar datos del pasajero:', passengerError);
+      } else if (passengerData) {
+        setRatingPassenger(passengerData);
+      }
+    } catch (err) {
+      console.error('[HU-061] Error al cargar pasajero:', err);
+    }
+
+    // Verificar si ya existe una calificación
+    try {
+      const { data: existingRatingData, error: ratingError } = await supabase
+        .from('ratings')
+        .select('*')
+        .eq('id_offer', route.id_offer)
+        .eq('document_rater', currentUserDoc)
+        .eq('document_rated', passenger.document)
+        .maybeSingle();
+
+      if (ratingError) {
+        console.error('[HU-061] Error al verificar calificación existente:', ratingError);
+      } else if (existingRatingData) {
+        setExistingPassengerRating(existingRatingData);
+        setPassengerRatingFormData({
+          score: existingRatingData.score,
+          comment: existingRatingData.comment || ''
+        });
+        setPassengerRatingMsg({
+          type: 'info',
+          text: `Ya calificaste a este pasajero con ${existingRatingData.score} estrella${existingRatingData.score > 1 ? 's' : ''}.`
+        });
+      }
+    } catch (err) {
+      console.error('[HU-061] Error al cargar calificación existente:', err);
+    }
+  };
+
+  // HU-061: Enviar calificación del pasajero
+  const handleSubmitPassengerRating = async () => {
+    if (!ratingPassenger || !ratingPassengerRoute) return;
+    setIsSubmittingPassengerRating(true);
+    setPassengerRatingMsg(null);
+
+    try {
+      const driverDoc = currentUserDoc;
+      const passengerDoc = ratingPassenger.document;
+      const offerId = ratingPassengerRoute.id_offer;
+
+      // Validar: solo el conductor propietario puede calificar
+      const { data: validateData } = await supabase
+        .from('offers')
+        .select('document_employer, status')
+        .eq('id_offer', offerId)
+        .maybeSingle();
+
+      if (!validateData || validateData.document_employer !== driverDoc) {
+        throw new Error('Solo el conductor propietario puede calificar pasajeros.');
+      }
+
+      if (validateData.status !== 'Finalizada') {
+        throw new Error('La ruta debe estar en estado "Finalizada" para calificar.');
+      }
+
+      // Si ya existe calificación, eliminar primero
+      if (existingPassengerRating) {
+        const { error: deleteError } = await supabase
+          .from('ratings')
+          .delete()
+          .eq('id_offer', offerId)
+          .eq('document_rater', driverDoc)
+          .eq('document_rated', passengerDoc);
+
+        if (deleteError) throw deleteError;
+      }
+
+      // Insertar la nueva calificación
+      const { error: insertError } = await supabase
+        .from('ratings')
+        .insert({
+          id_offer: offerId,
+          document_rater: driverDoc,
+          document_rated: passengerDoc,
+          score: Number(passengerRatingFormData.score),
+          comment: passengerRatingFormData.comment || null
+        });
+
+      if (insertError) throw insertError;
+
+      // Notificar al pasajero
+      await supabase.from('notifications').insert({
+        user_document: passengerDoc,
+        type: 'passenger_rated',
+        message: `Te han calificado con ${passengerRatingFormData.score} estrella${passengerRatingFormData.score > 1 ? 's' : ''} como pasajero.`
+      });
+
+      setPassengerRatingMsg({
+        type: 'success',
+        text: `¡Calificación registrada exitosamente! Le diste ${passengerRatingFormData.score} estrella${passengerRatingFormData.score > 1 ? 's' : ''} al pasajero.`
+      });
+      setExistingPassengerRating(null);
+      setTimeout(() => {
+        setIsRatingPassengerModalOpen(false);
+        setRatingPassenger(null);
+        setRatingPassengerRoute(null);
+        fetchMyRoutes();
+      }, 2000);
+    } catch (error) {
+      console.error('[HU-061] Error al calificar:', error);
+      setPassengerRatingMsg({
+        type: 'error',
+        text: error.message || 'Error al registrar la calificación.'
+      });
+    } finally {
+      setIsSubmittingPassengerRating(false);
     }
   };
 
@@ -1062,6 +1220,21 @@ export function MyTransportRoutesPage() {
                             >
                               Ver perfil
                             </Button>
+                            {routes.find(r => r.id_offer === viewingApplicationsRouteId)?.status === 'Finalizada' && (app.app_status === 'Aceptada' || app.app_status === 'Aceptado') && (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 text-xs text-yellow-600 hover:text-yellow-700 font-medium px-2 py-1 rounded-md hover:bg-yellow-50 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPassengerRating(app, routes.find(r => r.id_offer === viewingApplicationsRouteId), e);
+                                }}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                Calificar
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1239,6 +1412,184 @@ export function MyTransportRoutesPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m7 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Sí, finalizar ruta
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Calificar Pasajero (HU-061) ── */}
+      {isRatingPassengerModalOpen && ratingPassenger && ratingPassengerRoute && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !isSubmittingPassengerRating && (setIsRatingPassengerModalOpen(false), setRatingPassenger(null), setRatingPassengerRoute(null))}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            style={{ animation: 'slideUp 0.3s ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="relative bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-5 rounded-t-2xl">
+              <button
+                onClick={() => {
+                  setIsRatingPassengerModalOpen(false);
+                  setRatingPassenger(null);
+                  setRatingPassengerRoute(null);
+                }}
+                className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors disabled:opacity-50"
+                disabled={isSubmittingPassengerRating}
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <span className="text-xl">👤</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Calificar Pasajero</h2>
+                  <p className="text-yellow-100 text-sm">
+                    {ratingPassengerRoute.detail_travels?.origin || 'Ruta'} → {ratingPassengerRoute.detail_travels?.destination}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-6 space-y-5">
+              {/* Información del pasajero */}
+              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-bold shrink-0">
+                  {ratingPassenger?.frt_name ? ratingPassenger.frt_name.substring(0, 1).toUpperCase() : 'P'}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {ratingPassenger
+                      ? `${ratingPassenger.frt_name || ''} ${ratingPassenger.scd_name ? ratingPassenger.scd_name + ' ' : ''}${ratingPassenger.frt_last_name || ''} ${ratingPassenger.scd_last_name || ''}`.trim()
+                      : 'Pasajero'}
+                  </p>
+                  <p className="text-xs text-slate-500 font-mono">{ratingPassenger?.document}</p>
+                </div>
+              </div>
+
+              {/* Mensaje informativo */}
+              {passengerRatingMsg && (
+                <div
+                  className={`flex items-start gap-3 p-4 rounded-xl border text-sm
+                    ${
+                      passengerRatingMsg.type === 'success'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : passengerRatingMsg.type === 'error'
+                        ? 'bg-red-50 border-red-200 text-red-700'
+                        : 'bg-blue-50 border-blue-200 text-blue-700'
+                    }`}
+                >
+                  <svg
+                    className="w-5 h-5 shrink-0 mt-0.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    {passengerRatingMsg.type === 'success' ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    ) : passengerRatingMsg.type === 'error' ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    )}
+                  </svg>
+                  <span>{passengerRatingMsg.text}</span>
+                </div>
+              )}
+
+              {/* Puntuación con estrellas */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  Puntuación (1 a 5 estrellas)
+                </label>
+                <div className="flex items-center justify-center gap-3 p-5 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border border-yellow-200">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      disabled={isSubmittingPassengerRating}
+                      onClick={() => setPassengerRatingFormData({ ...passengerRatingFormData, score: star })}
+                      className={`transition-all transform hover:scale-110 disabled:opacity-50
+                        ${
+                          star <= passengerRatingFormData.score
+                            ? 'text-yellow-500 scale-110'
+                            : 'text-slate-300 hover:text-yellow-400'
+                        }`}
+                    >
+                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 text-center mt-2">
+                  Has seleccionado <span className="font-bold text-amber-600">{passengerRatingFormData.score}</span> estrella{passengerRatingFormData.score > 1 ? 's' : ''}
+                </p>
+              </div>
+
+              {/* Comentario */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Comentario (opcional)
+                </label>
+                <textarea
+                  rows="3"
+                  maxLength="500"
+                  disabled={isSubmittingPassengerRating}
+                  value={passengerRatingFormData.comment}
+                  onChange={(e) => setPassengerRatingFormData({ ...passengerRatingFormData, comment: e.target.value })}
+                  placeholder="Comparte tu experiencia con este pasajero (máx. 500 caracteres)..."
+                  className="w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  {passengerRatingFormData.comment.length}/500 caracteres
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsRatingPassengerModalOpen(false);
+                  setRatingPassenger(null);
+                  setRatingPassengerRoute(null);
+                }}
+                disabled={isSubmittingPassengerRating}
+              >
+                Cancelar
+              </Button>
+              <button
+                type="button"
+                disabled={isSubmittingPassengerRating || passengerRatingMsg?.type === 'success'}
+                onClick={handleSubmitPassengerRating}
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-60 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
+              >
+                {isSubmittingPassengerRating ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    Guardar Calificación
                   </>
                 )}
               </button>
