@@ -277,7 +277,7 @@ export function MessagesPage() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /* ── send message (Ep9-Hu3) ─────────────────────────────────────────────── */
+  /* ── Enviar mensajes ─────────────────────────────────────────────── */
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed || !selectedId || !userDoc || sending) return;
@@ -681,7 +681,7 @@ export function MessagesPage() {
               )}
             </div>
 
-            {/* Input */}
+            {/* entrada */}
             <div className="px-4 py-3 border-t border-slate-100 bg-white shrink-0">
               <div className="flex items-end gap-2">
                 <div className="flex-1">

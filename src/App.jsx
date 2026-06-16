@@ -21,6 +21,7 @@ import { TransportRouteDetailPage } from './pages/TransportRouteDetailPage';
 import { MyTransportRoutesPage } from './pages/MyTransportRoutesPage';
 import { MyTransportReservationsPage } from './pages/MyTransportReservationsPage';
 import { RatingsHistoryPage } from './pages/RatingsHistoryPage';
+import ChatBot from './components/ChatBot';
 
 function App() {
   return (
@@ -60,6 +61,7 @@ function App() {
             </Route>
           </Route>
         </Routes>
+        <ChatBot />
       </BrowserRouter>
     </AuthProvider>
   );
