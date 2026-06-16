@@ -69,12 +69,14 @@ export function MyTransportReservationsPage() {
           )
         `)
         .eq('document', userData.document)
-        .eq('offers.type_offer', 'Transporte')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      setReservations(data || []);
+      // Filtrar solo rutas de transporte (type_offer = 'Transporte')
+      const transportReservations = (data || []).filter(app => app.offers?.type_offer === 'Transporte');
+
+      setReservations(transportReservations);
     } catch (err) {
       console.error('[HU-060] Error al cargar reservas:', err);
     } finally {
