@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Inicializar el cliente de Google AI
 // Usa variable de entorno si está disponible, sino usa la API key directa
-const API_KEY = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+const API_KEY = import.meta.env.VITE_GOOGLE_AI_API_KEY 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // Contexto del sistema para el asistente

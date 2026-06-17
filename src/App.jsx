@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { AccessibilityProvider } from './contexts/AccessibilityContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
@@ -22,9 +23,11 @@ import { MyTransportRoutesPage } from './pages/MyTransportRoutesPage';
 import { MyTransportReservationsPage } from './pages/MyTransportReservationsPage';
 import { RatingsHistoryPage } from './pages/RatingsHistoryPage';
 import ChatBot from './components/ChatBot';
+import AccessibilityWidget from './components/AccessibilityWidget';
 
 function App() {
   return (
+    <AccessibilityProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -62,8 +65,10 @@ function App() {
           </Route>
         </Routes>
         <ChatBot />
+        <AccessibilityWidget />
       </BrowserRouter>
     </AuthProvider>
+    </AccessibilityProvider>
   );
 }
 

@@ -33,7 +33,7 @@ export function RegisterPage() {
     loadUniversities();
   }, []);
 
-  const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -94,8 +94,23 @@ export function RegisterPage() {
       email: formData.email
     }]);
 
+    function getErrorMessage(dbError) {
+      const messages = {
+        "23505": "Documento o correo ya en uso",
+        "23503": "El registro relacionado no existe.",
+        "23502": "Hay campos obligatorios vacíos.",
+        "23514": "El valor no cumple las reglas del campo.",
+        "22001": "El texto es demasiado largo para este campo.",
+        "22P02": "Formato de dato inválido.",
+        "42501": "No tienes permisos para hacer esta operación.",
+        "PGRST116": "Se esperaba un solo registro, pero no se encontró o hubo más de uno."
+      };
+
+      return messages[dbError.code] || "Error guardando perfil en BD.";
+    }
+
     if (dbError) {
-      setErrorMsg("Error guardando perfil en BD: " + dbError.message);
+      setErrorMsg(getErrorMessage(dbError));
       setLoading(false);
       return;
     }
@@ -110,8 +125,8 @@ export function RegisterPage() {
 
   return (
     <Card className="p-8 shadow-2xl border-0 ring-1 ring-slate-200">
-      <Link 
-        to="/" 
+      <Link
+        to="/"
         className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors mb-5 group"
       >
         <svg className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +136,7 @@ export function RegisterPage() {
       </Link>
       <h2 className="text-2xl font-bold text-slate-900 mb-2">Crear Cuenta</h2>
       <p className="text-sm text-slate-500 mb-6">Completa tus datos para unirte a UniTrabajo.</p>
-      
+
       {errorMsg && (
         <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4 break-words">
           {errorMsg}
@@ -134,7 +149,7 @@ export function RegisterPage() {
           <label className="block text-xs font-medium text-slate-700 mb-1">Documento de Identidad</label>
           <input type="text" name="document" required value={formData.document} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" />
         </div>
-        
+
         {/* Nombres y Apellidos en grid */}
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -196,16 +211,15 @@ export function RegisterPage() {
                 <span className="ml-1.5 font-normal text-slate-400">({INSTITUTIONAL_DOMAIN})</span>
               )}
             </label>
-            <input 
-              type="email" 
-              name="email" 
-              required 
-              value={formData.email} 
-              onChange={handleChange} 
+            <input
+              type="email"
+              name="email"
+              required
+              value={formData.email}
+              onChange={handleChange}
               placeholder={isStudent ? `usuario${INSTITUTIONAL_DOMAIN}` : 'tu@correo.com'}
-              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${
-                emailHasWrongDomain ? 'border-red-300 bg-red-50' : 'border-slate-200'
-              }`} 
+              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${emailHasWrongDomain ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                }`}
             />
             {emailHasWrongDomain && (
               <p className="mt-1 text-xs text-red-500">
@@ -219,39 +233,38 @@ export function RegisterPage() {
         <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-100">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Contraseña</label>
-            <input 
-              type="password" 
-              name="password" 
-              required 
-              value={formData.password} 
-              onChange={handleChange} 
+            <input
+              type="password"
+              name="password"
+              required
+              value={formData.password}
+              onChange={handleChange}
               placeholder="Mín. 6 caracteres"
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue" 
+              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Confirmar Contraseña</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
-              value={confirmPassword} 
-              onChange={(e) => setConfirmPassword(e.target.value)} 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repite tu contraseña"
-              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${
-                passwordMismatch ? 'border-red-300 bg-red-50' : 'border-slate-200'
-              }`}
+              className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${passwordMismatch ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                }`}
             />
             {passwordMismatch && (
               <p className="mt-1 text-xs text-red-500">Las contraseñas no coinciden</p>
             )}
           </div>
         </div>
-        
+
         <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
           {loading ? 'Procesando...' : 'Registrarse'}
         </Button>
       </form>
-      
+
       <div className="mt-4 text-center text-sm text-slate-600">
         ¿Ya tienes cuenta? <Link to="/login" className="text-brand-blue font-semibold hover:underline">Inicia sesión</Link>
       </div>
