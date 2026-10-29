@@ -3,8 +3,30 @@ import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { formatDate, formatPayment, getCategoryIcon, getCategoryColor, parseDescription, buildDescription } from '../utils/helpers';
+import {
+  formatDate,
+  formatPayment,
+  getCategoryIcon,
+  getCategoryColor,
+  parseDescription,
+  buildDescription,
+  getLocalDateString,
+  isPastDate,
+  isOfferOpen,
+  APP_STATUS,
+  isAppAccepted,
+  isAppRejected
+} from '../utils/helpers';
+import { findOrCreateConversation } from '../services/conversations';
 import { useNavigate } from 'react-router-dom';
+
+// Ciclo de vida: Pendiente/Activa → En curso (candidato elegido) → Finalizada.
+// Cerrada = el empleador detuvo la vacante; si ya tenía trabajador, puede finalizarla.
+const hasWorker = (offer) => Boolean(offer.document_employee) && offer.document_employee !== offer.document_employer;
+const canEdit = (offer) => isOfferOpen(offer.status);
+const canClose = (offer) => isOfferOpen(offer.status) || offer.status === 'En curso';
+const canFinalize = (offer) => (offer.status === 'En curso' || offer.status === 'Cerrada') && hasWorker(offer);
+const canRate = (offer) => offer.status === 'Finalizada' && hasWorker(offer);
 
 export function MyOffersPage() {
   const { user } = useAuth();
@@ -28,12 +50,6 @@ export function MyOffersPage() {
   const [candidateProfile, setCandidateProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const navigate = useNavigate();
-
-  // Función para obtener la fecha de hoy en formato YYYY-MM-DD
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
 
   // Estados para la edición de vacantes
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -135,21 +151,26 @@ export function MyOffersPage() {
   const handleConfirmSelect = async () => {
     if (!confirmSelectApp) return;
     const { app, offer } = confirmSelectApp;
+    if (!isOfferOpen(offer?.status || 'Pendiente')) {
+      setSelectMsg({ type: 'error', text: 'La vacante ya no está abierta; no se puede cambiar el candidato.' });
+      setConfirmSelectApp(null);
+      return;
+    }
     setIsSelecting(true);
     setSelectMsg(null);
     try {
-      // 1. Marcar candidato seleccionado como 'Aceptado'
+      // 1. Marcar candidato seleccionado como aceptado
       const { error: acceptErr } = await supabase
         .from('aplications')
-        .update({ app_status: 'Aceptado' })
+        .update({ app_status: APP_STATUS.ACCEPTED })
         .eq('id_offer', app.id_offer)
         .eq('document', app.document);
       if (acceptErr) throw acceptErr;
 
-      // 2. Marcar el resto de postulantes como 'Rechazado'
+      // 2. Marcar el resto de postulantes como rechazados
       const { error: rejectErr } = await supabase
         .from('aplications')
-        .update({ app_status: 'Rechazado' })
+        .update({ app_status: APP_STATUS.REJECTED })
         .eq('id_offer', app.id_offer)
         .neq('document', app.document);
       if (rejectErr) throw rejectErr;
@@ -175,8 +196,8 @@ export function MyOffersPage() {
       setApplicants(prev =>
         prev.map(a =>
           a.document === app.document
-            ? { ...a, app_status: 'Aceptado' }
-            : { ...a, app_status: 'Rechazado' }
+            ? { ...a, app_status: APP_STATUS.ACCEPTED }
+            : { ...a, app_status: APP_STATUS.REJECTED }
         )
       );
 
@@ -211,12 +232,7 @@ export function MyOffersPage() {
         .single();
       if (userError) throw userError;
 
-      // 2. Obtener datos del vehículo (si existen)
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('document', doc)
-        .maybeSingle();
+
 
       // 3. Obtener valoraciones/calificaciones del usuario
       const { data: ratingsData } = await supabase
@@ -235,7 +251,6 @@ export function MyOffersPage() {
 
       setCandidateProfile({
         user: userData,
-        vehicle: vehicleData,
         rating: { average: Number(average), count }
       });
     } catch (err) {
@@ -249,7 +264,6 @@ export function MyOffersPage() {
           user_type: app.users?.user_type || 'Estudiante',
           document: app.document
         },
-        vehicle: null,
         rating: { average: 0, count: 0 }
       });
     } finally {
@@ -277,14 +291,22 @@ export function MyOffersPage() {
         .eq('id_offer', deletingOffer.id_offer);
       if (appsError) throw appsError;
 
-      // 2. Eliminar job_details (FK → offers)
+      // 2. Eliminar conversaciones de la vacante (sus mensajes caen por ON DELETE CASCADE).
+      //    Sin este paso la FK conversations_offer_fk impedía borrar la oferta.
+      const { error: convError } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id_offer', deletingOffer.id_offer);
+      if (convError) throw convError;
+
+      // 3. Eliminar job_details (FK → offers)
       const { error: detailsError } = await supabase
         .from('job_details')
         .delete()
         .eq('id_offer', deletingOffer.id_offer);
       if (detailsError) throw detailsError;
 
-      // 3. Eliminar la oferta
+      // 4. Eliminar la oferta
       const { error: offerError } = await supabase
         .from('offers')
         .delete()
@@ -297,7 +319,10 @@ export function MyOffersPage() {
       fetchMyOffers();
     } catch (error) {
       console.error(error);
-      setDeleteMsg({ type: 'error', text: error.message || 'Error al eliminar la vacante.' });
+      const text = error.code === '23503'
+        ? 'La vacante tiene registros asociados (calificaciones o mensajes). Ciérrala en lugar de eliminarla.'
+        : error.message || 'Error al eliminar la vacante.';
+      setDeleteMsg({ type: 'error', text });
     } finally {
       setIsDeleting(false);
     }
@@ -529,7 +554,7 @@ export function MyOffersPage() {
       await supabase.from('notifications').insert({
         user_document: ratedDoc,
         type: 'worker_rated',
-        message: `${ratingOffer.job_details?.category || 'El empleador'} te ha calificado con ${ratingFormData.score} estrella${ratingFormData.score > 1 ? 's' : ''}.`
+        message: `El empleador de la vacante "${parseDescription(ratingOffer.description).title || ratingOffer.job_details?.category || 'Trabajo General'}" te calificó con ${ratingFormData.score} estrella${ratingFormData.score > 1 ? 's' : ''}.`
       });
 
       setRatingMsg({
@@ -579,12 +604,8 @@ export function MyOffersPage() {
   const handleUpdateOffer = async (e) => {
     e.preventDefault();
     
-    // Validar que la fecha no sea anterior a hoy
-    const selectedDate = new Date(editFormData.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (selectedDate < today) {
+    // Validar que la fecha no sea anterior a hoy (comparación en hora local)
+    if (isPastDate(editFormData.date)) {
       setErrorMsg('La fecha del servicio no puede ser anterior a hoy.');
       return;
     }
@@ -714,6 +735,7 @@ export function MyOffersPage() {
         {offers.map((offer) => {
           const details = offer.job_details || {};
           const catColor = getCategoryColor(details.category);
+          const parsed = parseDescription(offer.description);
           return (
             <Card
               key={offer.id_offer}
@@ -726,9 +748,9 @@ export function MyOffersPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-semibold text-slate-800 group-hover:text-brand-blue transition-colors text-base truncate">
-                        {details.category || 'Trabajo General'}
+                        {parsed.title || details.category || 'Trabajo General'}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Publicado {formatDate(offer.create_at)}
@@ -739,7 +761,7 @@ export function MyOffersPage() {
                     </span>
                   </div>
                   <p className="text-sm text-slate-600 line-clamp-2 whitespace-pre-wrap mt-2.5">
-                    {offer.description}
+                    {parsed.description || offer.description}
                   </p>
                   <div className="flex flex-wrap items-center mt-4 gap-3 text-xs">
                     {details.category && (
@@ -756,18 +778,20 @@ export function MyOffersPage() {
                       <span className={`w-2 h-2 rounded-full ${offer.status === 'Pendiente' ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
                       Estado: {offer.status}
                     </span>
-                    <div className="ml-auto flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium px-2 py-1 rounded-md hover:bg-slate-50 transition-colors hover:cursor-pointer"
-                        onClick={(e) => handleOpenEdit(offer, e)}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Editar
-                      </button>
-                      {offer.status !== 'Cerrada' && (
+                    <div className="ml-auto flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {canEdit(offer) && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium px-2 py-1 rounded-md hover:bg-slate-50 transition-colors hover:cursor-pointer"
+                          onClick={(e) => handleOpenEdit(offer, e)}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Editar
+                        </button>
+                      )}
+                      {canClose(offer) && (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium px-2 py-1 rounded-md hover:bg-orange-50 transition-colors hover:cursor-pointer"
@@ -779,7 +803,7 @@ export function MyOffersPage() {
                           Cerrar
                         </button>
                       )}
-                      {offer.status === 'Cerrada' && (
+                      {canFinalize(offer) && (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2 py-1 rounded-md hover:bg-emerald-50 transition-colors hover:cursor-pointer"
@@ -791,7 +815,7 @@ export function MyOffersPage() {
                           Finalizar
                         </button>
                       )}
-                      {offer.status === 'Finalizada' && (
+                      {canRate(offer) && (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs text-yellow-600 hover:text-yellow-700 font-medium px-2 py-1 rounded-md hover:bg-yellow-50 transition-colors hover:cursor-pointer"
@@ -803,6 +827,7 @@ export function MyOffersPage() {
                           Calificar
                         </button>
                       )}
+                      {!hasWorker(offer) && (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-md hover:bg-red-50 transition-colors hover:cursor-pointer"
@@ -813,6 +838,7 @@ export function MyOffersPage() {
                         </svg>
                         Eliminar
                       </button>
+                      )}
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded-md hover:bg-indigo-50 transition-colors hover:cursor-pointer"
@@ -952,7 +978,7 @@ export function MyOffersPage() {
                   </svg>
                   Postulantes
                 </button>
-                {offer.status !== 'Cerrada' && (
+                {canClose(offer) && (
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1.5 text-sm text-orange-600 hover:text-orange-800 font-medium px-4 py-2 rounded-xl border border-orange-200 hover:bg-orange-50 transition-colors"
@@ -964,7 +990,7 @@ export function MyOffersPage() {
                     Cerrar Vacante
                   </button>
                 )}
-                {offer.status === 'Cerrada' && (
+                {canFinalize(offer) && (
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-800 font-medium px-4 py-2 rounded-xl border border-emerald-200 hover:bg-emerald-50 transition-colors"
@@ -976,7 +1002,7 @@ export function MyOffersPage() {
                     Finalizar Vacante
                   </button>
                 )}
-                {offer.status === 'Finalizada' && (
+                {canRate(offer) && (
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-1.5 text-sm text-yellow-600 hover:text-yellow-800 font-medium px-4 py-2 rounded-xl border border-yellow-200 hover:bg-yellow-50 transition-colors"
@@ -988,6 +1014,7 @@ export function MyOffersPage() {
                     Calificar Trabajador
                   </button>
                 )}
+                {!hasWorker(offer) && (
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-1.5 text-sm text-red-500 hover:text-red-700 font-medium px-4 py-2 rounded-xl border border-red-200 hover:bg-red-50 transition-colors"
@@ -998,12 +1025,15 @@ export function MyOffersPage() {
                   </svg>
                   Eliminar
                 </button>
+                )}
+                {canEdit(offer) && (
                 <Button variant="primary" className="flex-1 gap-1.5" onClick={(e) => handleOpenEdit(offer, e)}>
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Editar Vacante
                 </Button>
+                )}
               </div>
             </div>
           </div>
@@ -1276,7 +1306,7 @@ export function MyOffersPage() {
                     type="date"
                     name="date"
                     required
-                    min={getTodayDate()}
+                    min={getLocalDateString()}
                     value={editFormData.date}
                     onChange={handleEditInputChange}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none transition-all"
@@ -1380,14 +1410,14 @@ export function MyOffersPage() {
                           day: 'numeric', month: 'long', year: 'numeric'
                         })
                       : 'Fecha desconocida';
-                    const statusColor =
-                      app.app_status === 'Aceptado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                      app.app_status === 'Rechazado' ? 'bg-red-100 text-red-700 border-red-200' :
-                      'bg-amber-100 text-amber-700 border-amber-200';
+                    const isOfferPending = isOfferOpen(applicantsOffer?.status || 'Pendiente');
+                    const isAccepted = isAppAccepted(app.app_status);
+                    const isRejected = isAppRejected(app.app_status);
 
-                    const isOfferPending = (applicantsOffer?.status || 'Pendiente') === 'Pendiente';
-                    const isAccepted = app.app_status === 'Aceptado';
-                    const isRejected = app.app_status === 'Rechazado';
+                    const statusColor =
+                      isAccepted ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                      isRejected ? 'bg-red-100 text-red-700 border-red-200' :
+                      'bg-amber-100 text-amber-700 border-amber-200';
 
                     return (
                       <div
@@ -1750,33 +1780,7 @@ export function MyOffersPage() {
                     </div>
                   </div>
 
-                  {/* Vehículo Registrado (Si aplica) */}
-                  {candidateProfile.user?.user_type === 'Estudiante' && candidateProfile.vehicle && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Vehículo Registrado</h4>
-                      <div className="flex items-center gap-3 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                          {candidateProfile.vehicle.type === 'Carro' ? (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 10l-1-4H6l-1 4M3 10h18M4 10v7a2 2 0 002 2h12a2 2 0 002-2v-7M9 14h.01M15 14h.01" />
-                            </svg>
-                          ) : (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M15 18a3 3 0 100-6 3 3 0 000 6zM5 18a3 3 0 100-6 3 3 0 000 6z" />
-                            </svg>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {candidateProfile.vehicle.type}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Placa: <span className="font-mono font-semibold uppercase tracking-wider bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{candidateProfile.vehicle.plate}</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+
                 </>
               ) : (
                 <div className="text-center py-6">
@@ -1799,58 +1803,19 @@ export function MyOffersPage() {
                         .select('document')
                         .eq('email', user.email)
                         .single();
-
                       if (meErr) throw meErr;
-                      const myDoc = meData?.document;
-                      const otherDoc = candidateProfile?.user?.document || selectedCandidate?.document;
-                      const offerId = selectedCandidate?.id_offer || null;
 
-                      if (!myDoc) {
-                        alert('Completa tu perfil antes de iniciar una conversación.');
+                      const { id, error } = await findOrCreateConversation({
+                        offerId: selectedCandidate?.id_offer || null,
+                        myDoc: meData?.document,
+                        otherDoc: candidateProfile?.user?.document || selectedCandidate?.document,
+                        subject: applicantsOffer?.job_details?.category || null,
+                      });
+                      if (error) {
+                        alert(error);
                         return;
                       }
-
-                      // Buscar conversación existente
-                      const { data: existing } = await supabase
-                        .from('conversations')
-                        .select('*')
-                        .or(`(participant_a.eq.${myDoc},participant_b.eq.${otherDoc}),(participant_a.eq.${otherDoc},participant_b.eq.${myDoc})`)
-                        .eq('id_offer', offerId)
-                        .limit(1);
-
-                      if (existing && existing.length > 0) {
-                        const conv = existing[0];
-                        navigate(`/app/mensajes?conversation=${conv.id}`);
-                        return;
-                      }
-
-                      const newConv = {
-                        id: `CONV-${Math.floor(100000 + Math.random() * 900000)}`,
-                        id_offer: offerId,
-                        participant_a: myDoc,
-                        participant_b: otherDoc,
-                        created_at: new Date().toISOString()
-                      };
-
-                      const { data: insertData, error: insertErr } = await supabase
-                        .from('conversations')
-                        .insert(newConv)
-                        .select()
-                        .limit(1);
-
-                      if (insertErr) {
-                        // Fallback: notificar al otro
-                        await supabase.from('notifications').insert({
-                          user_document: otherDoc,
-                          type: 'new_message',
-                          message: `${user?.user_metadata?.full_name || user?.email || 'Un usuario'} desea iniciar una conversación.`
-                        });
-                        navigate('/app/mensajes');
-                        return;
-                      }
-
-                      const created = Array.isArray(insertData) ? insertData[0] : insertData;
-                      navigate(`/app/mensajes?conversation=${created.id || created.id_conversation || newConv.id}`);
+                      navigate(`/app/mensajes?conversation=${id}`);
                     } catch (err) {
                       console.error('Error iniciando conversación:', err);
                       alert('No fue posible iniciar la conversación.');

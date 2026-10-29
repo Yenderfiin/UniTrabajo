@@ -10,6 +10,20 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  function getAuthErrorMessage(authError) {
+  const messages = {
+    "Invalid login credentials": "Correo o contraseña incorrectos.",
+    "Email not confirmed": "Debes confirmar tu correo antes de iniciar sesión.",
+    "Invalid email": "El correo electrónico no es válido.",
+    "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres.",
+    "Too many requests": "Demasiados intentos. Intenta de nuevo más tarde.",
+    "Signup disabled": "El registro de nuevos usuarios está deshabilitado.",
+    "Email rate limit exceeded": "Has enviado demasiados correos. Intenta más tarde.",
+    "Weak password": "La contraseña es demasiado débil."
+  };
+
+  return messages[authError.message] || "No se pudo iniciar sesión.";
+}
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -17,12 +31,12 @@ export function LoginPage() {
     setErrorMsg(null);
     
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
 
     if (error) {
-      setErrorMsg(error.message);
+       setErrorMsg(getAuthErrorMessage(error));
       setLoading(false);
     } else {
       navigate('/app');

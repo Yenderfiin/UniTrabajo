@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { normalizeEmail, isInstitutionalEmail } from '../utils/helpers';
 
 const INSTITUTIONAL_DOMAIN = 'edu.co';
 
@@ -18,16 +19,14 @@ export function ProfilePage() {
     email: '',
     user_type: '',
     document: '',
-    description: '',
-    hasVehicle: false,
-    vehicleType: '',
-    vehiclePlate: '',
-    vehicleCapacity: ''
+    description: ''
   });
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  // true cuando el usuario existe en Auth pero no en la tabla users
+  const [isNewProfile, setIsNewProfile] = useState(false);
   const [message, setMessage] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [rating, setRating] = useState({ average: 0, count: 0 });
@@ -55,29 +54,8 @@ export function ProfilePage() {
             email: data.email || '',
             user_type: data.user_type || '',
             document: data.document || '',
-            description: data.description || '',
-            hasVehicle: false,
-            vehicleType: '',
-            vehiclePlate: '',
-            vehicleCapacity: ''
+            description: data.description || ''
           });
-
-          // Fetch vehicle data
-          const { data: vehicleData } = await supabase
-            .from('vehicles')
-            .select('*')
-            .eq('document', data.document)
-            .maybeSingle();
-
-          if (vehicleData) {
-            setFormData(prev => ({
-              ...prev,
-              hasVehicle: true,
-              vehicleType: vehicleData.type || '',
-              vehiclePlate: vehicleData.plate || '',
-              vehicleCapacity: vehicleData.capacity || ''
-            }));
-          }
 
           // Fetch user ratings
           const { data: ratingsData } = await supabase
@@ -101,12 +79,9 @@ export function ProfilePage() {
             document: user.user_metadata?.document || '',
             frt_name: user.user_metadata?.full_name?.split(' ')[0] || '',
             frt_last_name: user.user_metadata?.full_name?.split(' ')[1] || '',
-            user_type: 'Estudiante', // Valor por defecto
-            hasVehicle: false,
-            vehicleType: '',
-            vehiclePlate: '',
-            vehicleCapacity: ''
+            user_type: 'Estudiante' // Valor por defecto
           }));
+          setIsNewProfile(true);
           setIsEditing(true); // Forzar modo edición para que puedan crearlo
         }
       } catch (error) {
@@ -131,8 +106,13 @@ export function ProfilePage() {
     setMessage(null);
     
     // Validación de correo institucional si es estudiante
-    if (formData.user_type === 'Estudiante' && !formData.email.endsWith(INSTITUTIONAL_DOMAIN)) {
-      setErrorMsg(`El correo debe ser institucional (terminar en ${INSTITUTIONAL_DOMAIN}).`);
+    if (formData.user_type === 'Estudiante' && !isInstitutionalEmail(formData.email)) {
+      setErrorMsg(`Los estudiantes necesitan un correo institucional .${INSTITUTIONAL_DOMAIN}. Si eres usuario externo, cambia el tipo de usuario.`);
+      return;
+    }
+
+    if (isNewProfile && !/^\d{6,12}$/.test(formData.document.trim())) {
+      setErrorMsg('El documento debe tener entre 6 y 12 dígitos, sin puntos ni espacios.');
       return;
     }
 
@@ -143,77 +123,29 @@ export function ProfilePage() {
       const { error: dbError } = await supabase
         .from('users')
         .upsert({
-          document: formData.document, // Necesario como llave principal
+          document: formData.document.trim(), // Necesario como llave principal
           frt_name: formData.frt_name,
           scd_name: formData.scd_name || null,
           frt_last_name: formData.frt_last_name,
           scd_last_name: formData.scd_last_name || null,
           phne_number: formData.phne_number,
-          email: formData.email,
+          // El correo es la llave que une Auth con users; siempre se guarda el de la sesión
+          email: normalizeEmail(user.email),
           user_type: formData.user_type,
           status: 'A', // Campo obligatorio en la BD
-          id_university: 1, // Solo hay una universidad por el momento
+          // Solo hay una universidad por el momento; los externos no tienen universidad
+          id_university: formData.user_type === 'Estudiante' ? 1 : null,
           description: formData.description || null
         }, { onConflict: 'document' });
 
       if (dbError) throw dbError;
 
-      // Vehicle management
-      const { data: currentVehicles } = await supabase
-        .from('vehicles')
-        .select('plate')
-        .eq('document', formData.document);
-
-      if (formData.hasVehicle) {
-        if (!formData.vehiclePlate || !formData.vehicleType) {
-          throw new Error("Por favor, ingresa la placa y el tipo de vehículo.");
-        }
-        
-        // Formatear la placa: quitar guiones, espacios y asegurar mayúsculas (max 6 caracteres)
-        const formattedPlate = formData.vehiclePlate.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 6);
-        
-        // Capacidad automática: 3 para Carro, 1 para Moto
-        const autoCapacity = formData.vehicleType === 'Carro' ? 3 : 1;
-        
-        const { error: vehicleError } = await supabase
-          .from('vehicles')
-          .upsert({
-            document: formData.document,
-            plate: formattedPlate,
-            type: formData.vehicleType,
-            capacity: autoCapacity
-          }, { onConflict: 'plate' });
-          
-        if (vehicleError) {
-          if (vehicleError.code === '23505') throw new Error("Esta placa ya está registrada por otro usuario.");
-          throw vehicleError;
-        }
-
-        if (currentVehicles) {
-          const oldPlates = currentVehicles.map(v => v.plate).filter(p => p !== formattedPlate);
-          if (oldPlates.length > 0) {
-            await supabase.from('vehicles').delete().in('plate', oldPlates);
-          }
-        }
-      } else {
-        if (currentVehicles && currentVehicles.length > 0) {
-          await supabase.from('vehicles').delete().eq('document', formData.document);
-        }
-      }
-
-      // 2. Si el correo cambió, actualizar en auth
-      if (formData.email !== user.email) {
-        const { error: authError } = await supabase.auth.updateUser({
-          email: formData.email
-        });
-        
-        if (authError) throw authError;
-        
-        setMessage('Perfil actualizado. Si cambiaste tu correo, revisa tu bandeja de entrada para confirmarlo.');
-      } else {
-        setMessage('Tu información ha sido actualizada exitosamente.');
-        setIsEditing(false); // Salir del modo edición al guardar con éxito
-      }
+      // Antes se permitía cambiar el correo aquí: la fila de users quedaba con el
+      // correo nuevo mientras Auth seguía con el viejo hasta confirmarlo, y el
+      // perfil dejaba de encontrarse. Ahora el correo es de solo lectura.
+      setMessage('Tu información ha sido actualizada exitosamente.');
+      setIsNewProfile(false);
+      setIsEditing(false); // Salir del modo edición al guardar con éxito
       
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -359,11 +291,11 @@ export function ProfilePage() {
                 <input 
                   type="email" 
                   name="email" 
-                  required 
-                  disabled={!isEditing}
+                  readOnly
+                  disabled
                   value={formData.email} 
-                  onChange={handleChange} 
-                  className={`w-full border rounded-lg px-4 py-2.5 text-sm transition-shadow ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`} 
+                  title="El correo es tu usuario de acceso y no se puede cambiar desde el perfil"
+                  className="w-full border rounded-lg px-4 py-2.5 text-sm bg-slate-50 border-slate-200 text-slate-600 cursor-not-allowed" 
                 />
               </div>
             </div>
@@ -376,7 +308,7 @@ export function ProfilePage() {
                 <p className="text-sm text-slate-600 font-medium">Información estática</p>
                 
                 {/* Permite editar documento si está vacío (creación de perfil) */}
-                {(!formData.document && isEditing) ? (
+                {(isNewProfile && isEditing) ? (
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Documento</label>
@@ -417,58 +349,6 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {isStudent && (
-          <div className="pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-4 mt-4">
-              <h3 className="text-lg font-semibold text-slate-800">Información de Vehículo</h3>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="hasVehicle"
-                  checked={formData.hasVehicle}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  className="w-4 h-4 text-brand-blue border-slate-300 rounded focus:ring-brand-blue"
-                />
-                <span className="text-sm font-medium text-slate-700">Poseo vehículo (Conductor)</span>
-              </label>
-            </div>
-
-            {formData.hasVehicle && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Tipo de Vehículo</label>
-                  <select
-                    name="vehicleType"
-                    required={formData.hasVehicle}
-                    disabled={!isEditing}
-                    value={formData.vehicleType}
-                    onChange={handleChange}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm transition-shadow ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                  >
-                    <option value="">Selecciona tipo</option>
-                    <option value="Carro">Carro</option>
-                    <option value="Moto">Moto</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Placa</label>
-                  <input
-                    type="text"
-                    name="vehiclePlate"
-                    required={formData.hasVehicle}
-                    disabled={!isEditing}
-                    value={formData.vehiclePlate}
-                    onChange={handleChange}
-                    placeholder="Ej. ABC123"
-                    maxLength="7"
-                    className={`w-full border rounded-lg px-3 py-2 text-sm transition-shadow uppercase ${isEditing ? 'bg-white border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-blue/50 focus:border-brand-blue' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          )}
 
 
           {isEditing && (

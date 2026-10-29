@@ -82,7 +82,10 @@ Agregar las siguientes variables utilizando las credenciales proporcionadas por 
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu_clave_publica
+VITE_GOOGLE_AI_API_KEY=tu_clave_de_google_ai_studio
 ```
+
+La última variable solo la usa el asistente virtual; sin ella, el resto de la aplicación funciona y el chat avisa que no está configurado.
 
 Importante:
 
@@ -133,6 +136,26 @@ npm run preview
 ```bash
 npm run lint
 ```
+
+### Ejecutar pruebas unitarias
+
+```bash
+npm test
+```
+
+Las pruebas están en `tests/helpers.test.js` y usan el runner nativo de Node (`node:test`), así que no requieren dependencias adicionales.
+
+---
+
+## Scripts SQL
+
+Los scripts de la carpeta `sql/` se ejecutan a mano en el SQL Editor de Supabase. Después de desplegar la versión del 29 de octubre de 2026 hay que correr, en este orden:
+
+1. `046_remove_transport_tables.sql`: borra los datos del módulo de transporte retirado.
+2. `047_bloquear_lectura_anonima.sql`: quita al rol `anon` la lectura de las tablas con datos personales y crea la función `documento_registrado` que usa el registro.
+3. `048_integridad_estados.sql`: unifica los estados de las postulaciones y agrega restricciones de integridad.
+
+`000_modelo_relacional.sql` documenta el modelo y no se ejecuta sobre la base actual. La carpeta `nosql/` contiene el modelo alterno en MongoDB con sus datos sintéticos y consultas de prueba.
 
 ---
 

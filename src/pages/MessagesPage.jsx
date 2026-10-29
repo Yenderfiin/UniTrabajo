@@ -3,6 +3,7 @@ import React, {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
+import { findOrCreateConversation } from '../services/conversations';
 import { useAuth } from '../contexts/AuthContext';
 import { getInitials, formatPayment } from '../utils/helpers';
 
@@ -68,9 +69,8 @@ function dayLabel(dateStr) {
   });
 }
 
-function newConvId() {
-  return `CONV-${Math.floor(100_000 + Math.random() * 900_000)}`;
-}
+const isDesktop = () =>
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
 
 /* ─── component ──────────────────────────────────────────────────────────── */
 
@@ -194,10 +194,11 @@ export function MessagesPage() {
     const params = new URLSearchParams(location.search);
     const q = params.get('conversation');
     if (q) {
-      const found = conversations.find(c => c.id === q);
+      const found = conversations.find(c => String(c.id) === q);
       if (found) { setSelectedId(found.id); return; }
     }
-    if (!selectedId) setSelectedId(conversations[0].id);
+    // En móvil se muestra primero la lista; en escritorio se abre la más reciente
+    if (!selectedId && isDesktop()) setSelectedId(conversations[0].id);
   }, [conversations, location.search]);
 
   const selectedConv = useMemo(
@@ -227,14 +228,17 @@ export function MessagesPage() {
         setLoadingMsgs(false);
       });
 
-    // Mark as read
+    // Mark as read. Sin .then() el query builder de Supabase nunca envía la petición.
     const conv = conversations.find(c => c.id === selectedId);
     if (conv && userDoc) {
       const field = conv.isA ? 'last_read_a' : 'last_read_b';
       supabase
         .from('conversations')
         .update({ [field]: new Date().toISOString() })
-        .eq('id', selectedId);
+        .eq('id', selectedId)
+        .then(({ error: readErr }) => {
+          if (readErr) console.error('No se pudo marcar la conversación como leída:', readErr);
+        });
     }
 
     // Realtime subscription (Ep9-Hu5)
@@ -277,7 +281,7 @@ export function MessagesPage() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /* ── send message (Ep9-Hu3) ─────────────────────────────────────────────── */
+  /* ── Enviar mensajes ─────────────────────────────────────────────── */
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed || !selectedId || !userDoc || sending) return;
@@ -353,7 +357,10 @@ export function MessagesPage() {
       conversations.filter(c => c.idOffer).map(c => c.idOffer),
     );
 
+    // Al publicar, document_employee se llena con el mismo empleador; esas
+    // ofertas no tienen contraparte todavía y se descartan.
     const mapped = (offersData ?? [])
+      .filter(o => o.document_employer !== o.document_employee)
       .filter(o => !existingOfferIds.has(o.id_offer))
       .map(o => {
         const isEmp = o.document_employer === userDoc;
@@ -381,34 +388,16 @@ export function MessagesPage() {
     if (!userDoc || startingConv) return;
     setStartingConv(true);
 
-    // Check if conversation already exists
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id_offer', offer.offerId)
-      .or(
-        `and(participant_a.eq.${userDoc},participant_b.eq.${offer.counterpartDoc}),` +
-        `and(participant_a.eq.${offer.counterpartDoc},participant_b.eq.${userDoc})`,
-      )
-      .limit(1);
-
-    let convId;
-    if (existing?.[0]) {
-      convId = existing[0].id;
-    } else {
-      convId = newConvId();
-      const { error: upsertErr } = await supabase.from('conversations').upsert(
-        {
-          id: convId,
-          id_offer: offer.offerId,
-          participant_a: userDoc,
-          participant_b: offer.counterpartDoc,
-          subject: offer.category,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' },
-      );
-      if (upsertErr) { setStartingConv(false); return; }
+    const { id: convId, error: convErr } = await findOrCreateConversation({
+      offerId: offer.offerId,
+      myDoc: userDoc,
+      otherDoc: offer.counterpartDoc,
+      subject: offer.category,
+    });
+    if (convErr) {
+      setError(convErr);
+      setStartingConv(false);
+      return;
     }
 
     await fetchConversations();
@@ -464,7 +453,7 @@ export function MessagesPage() {
         style={{ height: 'calc(100dvh - 56px - 48px - 60px - 24px)' }}
       >
         {/* ── LEFT: conversation list ────────────────────────────────────── */}
-        <div className="w-72 shrink-0 flex flex-col border-r border-slate-100 bg-slate-50/60">
+        <div className={`${selectedConv ? 'hidden md:flex' : 'flex'} w-full md:w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50/60`}>
           {/* Search */}
           <div className="p-3 border-b border-slate-100">
             <div className="relative">
@@ -573,7 +562,17 @@ export function MessagesPage() {
         {selectedConv ? (
           <div className="flex-1 flex flex-col min-w-0">
             {/* Header */}
-            <div className="h-16 px-5 flex items-center gap-4 border-b border-slate-100 bg-white shrink-0">
+            <div className="h-16 px-3 sm:px-5 flex items-center gap-3 sm:gap-4 border-b border-slate-100 bg-white shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="md:hidden -ml-1 p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                aria-label="Volver a la lista de conversaciones"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
               <div
                 className={`h-10 w-10 rounded-xl bg-gradient-to-br ${selectedConv.color} text-white flex items-center justify-center text-sm font-bold shadow-sm`}
               >
@@ -681,7 +680,7 @@ export function MessagesPage() {
               )}
             </div>
 
-            {/* Input */}
+            {/* entrada */}
             <div className="px-4 py-3 border-t border-slate-100 bg-white shrink-0">
               <div className="flex items-end gap-2">
                 <div className="flex-1">
@@ -723,7 +722,7 @@ export function MessagesPage() {
           </div>
         ) : (
           /* Empty state */
-          <div className="flex-1 flex items-center justify-center bg-slate-50/30">
+          <div className="hidden md:flex flex-1 items-center justify-center bg-slate-50/30">
             <div className="text-center">
               <div className="h-20 w-20 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mx-auto mb-4">
                 <svg className="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -160,12 +160,8 @@ export function RatingsHistoryPage() {
     return `${userData.frt_name || ''} ${userData.scd_name ? userData.scd_name + ' ' : ''}${userData.frt_last_name || ''} ${userData.scd_last_name || ''}`.trim() || 'Usuario anónimo';
   };
 
-  const getOfferType = (rating) => {
-    const typeOffer = rating.offers?.type_offer;
-    if (typeOffer === 'Transporte') {
-      return { label: 'Ruta de Transporte', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-    }
-    return { label: 'Vacante de Trabajo', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+  const getOfferType = () => {
+    return { label: 'Micro-Trabajo', color: 'bg-purple-50 text-purple-700 border-purple-200' };
   };
 
   const renderStars = (score) => {
@@ -272,7 +268,7 @@ export function RatingsHistoryPage() {
       ) : (
         <div className="space-y-4">
           {ratingsList.map((rating, index) => {
-            const offerType = getOfferType(rating);
+            const offerType = getOfferType();
             const ratingDate = rating.offers?.create_at
               ? new Date(rating.offers.create_at).toLocaleDateString('es-CO', {
                   year: 'numeric',
@@ -293,7 +289,7 @@ export function RatingsHistoryPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border inline-flex items-center gap-1 ${offerType.color}`}>
-                        {offerType.label === 'Ruta de Transporte' ? '🚗' : '💼'} {offerType.label}
+                        💼 {offerType.label}
                       </span>
                     </div>
                   </div>

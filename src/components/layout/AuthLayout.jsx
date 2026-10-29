@@ -3,11 +3,12 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Navbar } from './Navbar';
 
-export function AuthLayout() {
+export function AuthLayout({ allowSession = false }) {
   const { user } = useAuth();
 
   // Si ya hay usuario, evitamos que vaya al login y lo mandamos al inicio
-  if (user) {
+  // (salvo en /reset-password, que necesita la sesión de recuperación)
+  if (user && !allowSession) {
     return <Navigate to="/app" replace />;
   }
 
