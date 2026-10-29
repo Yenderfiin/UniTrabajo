@@ -1,49 +1,48 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Inicializar el cliente de Google AI
-// Usa variable de entorno si está disponible, sino usa la API key directa
-const API_KEY = import.meta.env.VITE_GOOGLE_AI_API_KEY 
-const genAI = new GoogleGenerativeAI(API_KEY);
+// La clave se lee solo del entorno (.env). No se deja ninguna clave en el código.
+const API_KEY = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+const MODEL = 'gemini-3-flash-preview';
+const MAX_HISTORY = 20;
+
+const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
 // Contexto del sistema para el asistente
-const SYSTEM_PROMPT = `Eres un asistente inteligente de UniTrabajo, una plataforma de trabajos por encargo y transporte compartido. 
+const SYSTEM_PROMPT = `Eres un asistente inteligente de UniTrabajo, una plataforma de micro-trabajos universitarios.
 
 Tu rol es ayudar a los usuarios con:
-- Consultas sobre cómo publicar y buscar vacantes de trabajo
-- Información sobre rutas de transporte compartido y reservas
+- Consultas sobre cómo publicar y buscar vacantes de micro-trabajos
 - Cómo crear perfiles, aplicar a trabajos y calificaciones
 - Consejos sobre seguridad y buenas prácticas en la plataforma
 - Resolución de problemas técnicos comunes
-- Orientación sobre cómo funciona el sistema de calificaciones
+- Orientación sobre cómo funciona el sistema de calificaciones y mensajería
 
 Sé amable, profesional y conciso. Si no sabes algo sobre UniTrabajo, sugiere que contacte con soporte.
 Responde siempre en el idioma en que el usuario te escribe.`;
 
 export const sendMessage = async (userMessage, conversationHistory = []) => {
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+  if (!genAI) {
+    return {
+      success: false,
+      error: 'el asistente no está configurado (falta VITE_GOOGLE_AI_API_KEY)',
+    };
+  }
 
-    // Construir el historial de mensajes
+  try {
+    // systemInstruction separa el contexto del diálogo. Antes el prompt se enviaba
+    // como un turno de usuario y quedaban dos turnos 'user' seguidos.
+    const model = genAI.getGenerativeModel({ model: MODEL, systemInstruction: SYSTEM_PROMPT });
+
     const messages = [
-      ...conversationHistory,
-      {
-        role: 'user',
-        content: userMessage,
-      },
+      ...conversationHistory.slice(-MAX_HISTORY),
+      { role: 'user', content: userMessage },
     ];
 
-    // Enviar el mensaje
     const response = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: SYSTEM_PROMPT }],
-        },
-        ...messages.map((msg) => ({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.content }],
-        })),
-      ],
+      contents: messages.map((msg) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }],
+      })),
     });
 
     const result = await response.response;

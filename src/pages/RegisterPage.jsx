@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Link, useNavigate } from 'react-router-dom';
+import { normalizeEmail, isInstitutionalEmail } from '../utils/helpers';
 
 const INSTITUTIONAL_DOMAIN = 'edu.co';
 
@@ -21,6 +22,8 @@ export function RegisterPage() {
     password: ''
   });
   const [confirmPassword, setConfirmPassword] = useState('');
+  // Autorización previa e informada (Ley 1581 de 2012, art. 9; Decreto 1377 de 2013, art. 5)
+  const [acceptsDataPolicy, setAcceptsDataPolicy] = useState(false);
   const [universities, setUniversities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -39,16 +42,41 @@ export function RegisterPage() {
     e.preventDefault();
     setErrorMsg(null);
 
+    // Supabase Auth guarda el correo en minúsculas; la tabla users debe coincidir
+    // porque toda la aplicación busca el perfil con .eq('email', user.email).
+    const email = normalizeEmail(formData.email);
+    const doc = formData.document.trim();
+
     // Validación: correo institucional (solo para Estudiantes)
     const isStudent = formData.user_type === 'Estudiante';
-    if (isStudent && !formData.email.endsWith(INSTITUTIONAL_DOMAIN)) {
-      setErrorMsg(`El correo debe ser institucional (terminar en ${INSTITUTIONAL_DOMAIN}).`);
+    if (isStudent && !isInstitutionalEmail(email)) {
+      setErrorMsg(`El correo debe ser institucional (por ejemplo usuario@ufpso.${INSTITUTIONAL_DOMAIN}).`);
+      return;
+    }
+
+    if (!/^\d{6,12}$/.test(doc)) {
+      setErrorMsg('El documento debe tener entre 6 y 12 dígitos, sin puntos ni espacios.');
+      return;
+    }
+
+    if (!/^(3\d{9}|60\d{8})$/.test(formData.phne_number.trim())) {
+      setErrorMsg('El teléfono debe tener 10 dígitos: celular que empiece por 3 o fijo que empiece por 60.');
+      return;
+    }
+
+    if (isStudent && !formData.id_university) {
+      setErrorMsg('Selecciona tu universidad.');
       return;
     }
 
     // Validación: confirmación de contraseña
     if (formData.password !== confirmPassword) {
       setErrorMsg('Las contraseñas no coinciden. Por favor, verifícalas.');
+      return;
+    }
+
+    if (!acceptsDataPolicy) {
+      setErrorMsg('Debes autorizar el tratamiento de tus datos personales para crear la cuenta.');
       return;
     }
 
@@ -60,12 +88,39 @@ export function RegisterPage() {
 
     setLoading(true);
 
+    // 0. Verificar que el documento no exista antes de crear la cuenta en Auth.
+    //    Si el insert en users fallaba después del signUp, quedaba una cuenta huérfana.
+    //    La función documento_registrado (sql/047) responde sin exponer la tabla;
+    //    mientras no exista, se consulta users directamente.
+    let docTaken = false;
+    const { data: rpcTaken, error: rpcError } = await supabase.rpc('documento_registrado', { doc });
+    if (!rpcError) {
+      docTaken = rpcTaken === true;
+    } else {
+      const { data: row } = await supabase
+        .from('users')
+        .select('document')
+        .eq('document', doc)
+        .maybeSingle();
+      docTaken = Boolean(row);
+    }
+    if (docTaken) {
+      setErrorMsg('Ya existe una cuenta registrada con este documento.');
+      setLoading(false);
+      return;
+    }
+
     // 1. Auth Signup (guardamos el documento en la metadata)
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: formData.email,
+    const { error: authError } = await supabase.auth.signUp({
+      email,
       password: formData.password,
       options: {
-        data: { document: formData.document, full_name: `${formData.frt_name} ${formData.frt_last_name}` }
+        data: {
+          document: doc,
+          full_name: `${formData.frt_name} ${formData.frt_last_name}`,
+          // Prueba de la autorización (Decreto 1377 de 2013, art. 8)
+          data_policy_accepted_at: new Date().toISOString()
+        }
       }
     });
 
@@ -82,16 +137,16 @@ export function RegisterPage() {
 
     // 2. Insert into public users table
     const { error: dbError } = await supabase.from('users').insert([{
-      document: formData.document,
-      frt_name: formData.frt_name,
-      scd_name: formData.scd_name || null,
-      frt_last_name: formData.frt_last_name,
-      scd_last_name: formData.scd_last_name || null,
-      phne_number: formData.phne_number,
+      document: doc,
+      frt_name: formData.frt_name.trim(),
+      scd_name: formData.scd_name.trim() || null,
+      frt_last_name: formData.frt_last_name.trim(),
+      scd_last_name: formData.scd_last_name.trim() || null,
+      phne_number: formData.phne_number.trim(),
       user_type: formData.user_type,
       status: 'A',
       id_university: isStudent ? parseInt(formData.id_university, 10) : null,
-      email: formData.email
+      email
     }]);
 
     function getErrorMessage(dbError) {
@@ -120,7 +175,7 @@ export function RegisterPage() {
 
   // Derivar si el email tiene dominio incorrecto (solo aplica a Estudiantes)
   const isStudent = formData.user_type === 'Estudiante';
-  const emailHasWrongDomain = isStudent && formData.email.length > 0 && formData.email.includes('@') && !formData.email.endsWith(INSTITUTIONAL_DOMAIN);
+  const emailHasWrongDomain = isStudent && formData.email.includes('@') && formData.email.includes('.') && !isInstitutionalEmail(formData.email);
   const passwordMismatch = confirmPassword.length > 0 && formData.password !== confirmPassword;
 
   return (
@@ -197,7 +252,7 @@ export function RegisterPage() {
               {universities.map(u => (
                 <option key={u.id_university} value={u.id_university}>{u.name}</option>
               ))}
-              {universities.length === 0 && <option value="1">Universidad Nacional (Default)</option>}
+              {universities.length === 0 && <option value="" disabled>No se pudieron cargar las universidades</option>}
             </select>
           </div>
         )}
@@ -217,13 +272,13 @@ export function RegisterPage() {
               required
               value={formData.email}
               onChange={handleChange}
-              placeholder={isStudent ? `usuario${INSTITUTIONAL_DOMAIN}` : 'tu@correo.com'}
+              placeholder={isStudent ? `usuario@ufpso.${INSTITUTIONAL_DOMAIN}` : 'tu@correo.com'}
               className={`w-full bg-slate-50 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue transition-colors ${emailHasWrongDomain ? 'border-red-300 bg-red-50' : 'border-slate-200'
                 }`}
             />
             {emailHasWrongDomain && (
               <p className="mt-1 text-xs text-red-500">
-                El correo debe terminar en {INSTITUTIONAL_DOMAIN}
+                El correo debe ser de un dominio institucional .{INSTITUTIONAL_DOMAIN}
               </p>
             )}
           </div>
@@ -259,6 +314,20 @@ export function RegisterPage() {
             )}
           </div>
         </div>
+
+        <label className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
+          <input
+            type="checkbox"
+            checked={acceptsDataPolicy}
+            onChange={(e) => setAcceptsDataPolicy(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
+          />
+          <span>
+            Autorizo a UniTrabajo a tratar mis datos personales (documento, nombres, teléfono y correo) para
+            publicar y gestionar vacantes, postulaciones, mensajes y calificaciones, según la Ley 1581 de 2012.
+            Puedo consultar, actualizar o pedir la supresión de mis datos escribiendo a soporte.
+          </span>
+        </label>
 
         <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
           {loading ? 'Procesando...' : 'Registrarse'}

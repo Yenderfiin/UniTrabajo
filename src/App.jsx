@@ -5,9 +5,7 @@ import { AccessibilityProvider } from './contexts/AccessibilityContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import { StudentRoute } from './components/layout/StudentRoute';
 import { MicroJobsPage } from './pages/MicroJobsPage';
-import { TransportPage } from './pages/TransportPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -18,9 +16,6 @@ import { ProfilePage } from './pages/ProfilePage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { MyApplicationsPage } from './pages/MyApplicationsPage';
 import { MessagesPage } from './pages/MessagesPage';
-import { TransportRouteDetailPage } from './pages/TransportRouteDetailPage';
-import { MyTransportRoutesPage } from './pages/MyTransportRoutesPage';
-import { MyTransportReservationsPage } from './pages/MyTransportReservationsPage';
 import { RatingsHistoryPage } from './pages/RatingsHistoryPage';
 import ChatBot from './components/ChatBot';
 import AccessibilityWidget from './components/AccessibilityWidget';
@@ -39,6 +34,11 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          </Route>
+
+          {/* El enlace del correo de recuperación abre una sesión temporal. Dentro de
+              AuthLayout esa sesión redirigía a /app y el formulario nunca se veía. */}
+          <Route element={<AuthLayout allowSession />}>
             <Route path="/reset-password" element={<ResetPasswordPage />} />
           </Route>
 
@@ -52,15 +52,6 @@ function App() {
               <Route path="mensajes" element={<MessagesPage />} />
               <Route path="mis-postulaciones" element={<MyApplicationsPage />} />
               <Route path="calificaciones" element={<RatingsHistoryPage />} />
-            </Route>
-
-            <Route element={<StudentRoute />}>
-              <Route path="/app/transporte" element={<MainLayout />}>
-                <Route index element={<TransportPage />} />
-                <Route path="mis-rutas" element={<MyTransportRoutesPage />} />
-                <Route path="mis-reservas" element={<MyTransportReservationsPage />} />
-                <Route path=":offerId" element={<TransportRouteDetailPage />} />
-              </Route>
             </Route>
           </Route>
         </Routes>

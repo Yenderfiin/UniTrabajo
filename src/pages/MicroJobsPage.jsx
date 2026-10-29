@@ -9,20 +9,18 @@ import {
   getCategoryIcon,
   getCategoryColor,
   getEmployerName,
-  getInitials
+  getInitials,
+  parseDescription,
+  JOB_CATEGORIES,
+  MICROJOB_TYPES,
+  OPEN_OFFER_STATUSES,
+  isOfferOpen,
+  APP_STATUS,
+  getLocalDateString,
+  isPastDate
 } from '../utils/helpers';
+import { findOrCreateConversation } from '../services/conversations';
 import { useNavigate } from 'react-router-dom';
-
-const CATEGORIES = [
-  'Todas',
-  'Limpieza',
-  'Mantenimiento',
-  'Asesoría',
-  'Tecnología',
-  'Mensajería',
-  'Ayuda con tareas',
-  'Otro'
-];
 
 const SORT_OPTIONS = [
   { value: 'date_desc', label: 'Más recientes' },
@@ -62,15 +60,9 @@ export function MicroJobsPage() {
   const [selectedJob, setSelectedJob] = useState(null);
   const navigate = useNavigate();
 
-  // Función para obtener la fecha de hoy en formato YYYY-MM-DD
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
   const fetchJobs = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('offers')
       .select(`
         id_offer,
@@ -81,12 +73,12 @@ export function MicroJobsPage() {
         users!document_employer ( frt_name, frt_last_name ),
         job_details ( category, payment, hours )
       `)
-      .in('type_offer', ['Trabajo', 'Tutoría', 'Mensajería'])
-      .eq('status', 'Pendiente')
+      .in('type_offer', MICROJOB_TYPES)
+      .in('status', OPEN_OFFER_STATUSES)
       .order('create_at', { ascending: false });
 
     if (data) {
-      setJobs(data);
+      setJobs(data.map(job => ({ ...job, parsed: parseDescription(job.description) })));
     }
     setLoading(false);
   };
@@ -133,13 +125,14 @@ export function MicroJobsPage() {
 
     // Filtro por búsqueda
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       result = result.filter(job => {
         const details = job.job_details || {};
         const employer = job.users;
         const employerName = employer ? `${employer.frt_name} ${employer.frt_last_name}` : '';
         return (
           (job.description || '').toLowerCase().includes(q) ||
+          (job.parsed?.location || '').toLowerCase().includes(q) ||
           (details.category || '').toLowerCase().includes(q) ||
           employerName.toLowerCase().includes(q)
         );
@@ -167,6 +160,14 @@ export function MicroJobsPage() {
     return result;
   }, [jobs, searchQuery, activeCategory, sortBy]);
 
+  // Categorías del formulario más las que aparezcan en los datos
+  const CATEGORIES = useMemo(() => {
+    const fromData = jobs
+      .map(j => (j.job_details || {}).category)
+      .filter(cat => cat && !JOB_CATEGORIES.includes(cat));
+    return ['Todas', ...JOB_CATEGORIES, ...[...new Set(fromData)].sort()];
+  }, [jobs]);
+
   // Conteo por categoría
   const categoryCounts = useMemo(() => {
     const counts = { Todas: jobs.length };
@@ -176,7 +177,7 @@ export function MicroJobsPage() {
       }
     });
     return counts;
-  }, [jobs]);
+  }, [jobs, CATEGORIES]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -189,12 +190,8 @@ export function MicroJobsPage() {
       return;
     }
 
-    // Validar que la fecha no sea anterior a hoy
-    const selectedDate = new Date(formData.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (selectedDate < today) {
+    // Validar que la fecha no sea anterior a hoy (comparación en hora local)
+    if (isPastDate(formData.date)) {
       setErrorMsg('La fecha del servicio no puede ser anterior a hoy.');
       return;
     }
@@ -247,7 +244,7 @@ export function MicroJobsPage() {
     if (job.document_employer === userDoc) return; // No puede postularse a su propia vacante
     
     // HU-054: Validar que la vacante no esté cerrada
-    if (job.status !== 'Pendiente') {
+    if (!isOfferOpen(job.status)) {
       alert('No puedes postularte a una vacante que no está disponible.');
       return;
     }
@@ -258,7 +255,7 @@ export function MicroJobsPage() {
       const { error: appError } = await supabase.from('aplications').insert({
         id_offer: job.id_offer,
         document: userDoc,
-        app_status: 'Pendiente'
+        app_status: APP_STATUS.PENDING
       });
 
       if (appError) {
@@ -271,19 +268,12 @@ export function MicroJobsPage() {
       } else {
         setMyApplications(prev => [...prev, job.id_offer]);
 
-        // 2. Insert notification for employer
-        // Find employer document. offers table has document_employer
-        const { data: offerData } = await supabase
-          .from('offers')
-          .select('document_employer')
-          .eq('id_offer', job.id_offer)
-          .single();
-
-        if (offerData?.document_employer) {
+        // 2. Notificar al empleador (el documento ya viene en la oferta)
+        if (job.document_employer) {
           await supabase.from('notifications').insert({
-            user_document: offerData.document_employer,
+            user_document: job.document_employer,
             type: 'new_application',
-            message: `Alguien se ha postulado a tu vacante de "${job.job_details?.category || 'Trabajo General'}".`
+            message: `Alguien se ha postulado a tu vacante "${job.parsed?.title || job.job_details?.category || 'Trabajo General'}".`
           });
         }
 
@@ -517,6 +507,7 @@ export function MicroJobsPage() {
             const employerName = getEmployerName(job);
             const details = job.job_details || {};
             const catColor = getCategoryColor(details.category);
+            const parsed = job.parsed || {};
 
             return (
               <Card
@@ -535,7 +526,7 @@ export function MicroJobsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <h4 className="font-semibold text-slate-900 group-hover:text-brand-blue transition-colors truncate">
-                            {details.category || 'Trabajo General'}
+                            {parsed.title || details.category || 'Trabajo General'}
                           </h4>
                           <p className="text-xs text-slate-500 mt-0.5">
                             {employerName} · {formatDate(job.create_at)}
@@ -550,7 +541,7 @@ export function MicroJobsPage() {
 
                   {/* Descripción */}
                   <p className="text-sm text-slate-600 leading-relaxed line-clamp-3 whitespace-pre-wrap mb-3">
-                    {job.description}
+                    {parsed.description || job.description}
                   </p>
 
                   {/* Tags y meta info */}
@@ -566,6 +557,16 @@ export function MicroJobsPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         {details.hours}h estimadas
+                      </span>
+                    )}
+                    {parsed.location && (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200">
+                        📍 {parsed.location}
+                      </span>
+                    )}
+                    {parsed.date && (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200">
+                        📅 {parsed.date}
                       </span>
                     )}
                     <button
@@ -672,6 +673,8 @@ export function MicroJobsPage() {
         const employerName = getEmployerName(job);
         const details = job.job_details || {};
         const catColor = getCategoryColor(details.category);
+        const parsed = job.parsed || {};
+        const isOwnOffer = job.document_employer === userDoc;
 
         return (
           <div
@@ -699,7 +702,7 @@ export function MicroJobsPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white">
-                      {details.category || 'Trabajo General'}
+                      {parsed.title || details.category || 'Trabajo General'}
                     </h2>
                     <p className="text-blue-100 text-sm">Publicado por {employerName}</p>
                   </div>
@@ -741,10 +744,27 @@ export function MicroJobsPage() {
                   <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Descripción completa</h4>
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                     <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                      {job.description}
+                      {parsed.description || job.description}
                     </p>
                   </div>
                 </div>
+
+                {(parsed.location || parsed.date) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {parsed.location && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Ubicación</h4>
+                        <p className="text-sm text-slate-700">📍 {parsed.location}</p>
+                      </div>
+                    )}
+                    {parsed.date && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Fecha del servicio</h4>
+                        <p className="text-sm text-slate-700">📅 {parsed.date}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Fecha publicación */}
                 <div>
@@ -770,76 +790,27 @@ export function MicroJobsPage() {
                 <Button variant="outline" className="flex-1" onClick={() => setSelectedJob(null)}>
                   Regresar al listado
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={async () => {
-                    // Iniciar conversación defensiva
-                    try {
-                      if (!userDoc) {
-                        alert('Necesitas completar tu perfil antes de iniciar una conversación.');
+                {!isOwnOffer && (
+                  <Button
+                    variant="ghost"
+                    className="flex-1"
+                    onClick={async () => {
+                      const { id, error } = await findOrCreateConversation({
+                        offerId: job.id_offer,
+                        myDoc: userDoc,
+                        otherDoc: job.document_employer,
+                        subject: details.category || null,
+                      });
+                      if (error) {
+                        alert(error);
                         return;
                       }
-
-                      const employerDoc = job.document_employer;
-                      const participantA = employerDoc;
-                      const participantB = userDoc;
-
-                      // Intentar buscar conversación existente en tabla 'conversations'
-                      const { data: existing, error: selErr } = await supabase
-                        .from('conversations')
-                        .select('*')
-                        .or(`(participant_a.eq.${participantA},participant_b.eq.${participantB}),(participant_a.eq.${participantB},participant_b.eq.${participantA})`)
-                        .eq('id_offer', job.id_offer)
-                        .limit(1);
-
-                      if (selErr && selErr.code === '42883') {
-                        // Table not found or function error - fallback
-                      }
-
-                      if (existing && existing.length > 0) {
-                        const conv = existing[0];
-                        navigate(`/app/mensajes?conversation=${conv.id}`);
-                        return;
-                      }
-
-                      // Insert new conversation if table exists
-                      const newConv = {
-                        id: `CONV-${Math.floor(100000 + Math.random() * 900000)}`,
-                        id_offer: job.id_offer,
-                        participant_a: participantA,
-                        participant_b: participantB,
-                        created_at: new Date().toISOString()
-                      };
-
-                      const { data: insertData, error: insertErr } = await supabase
-                        .from('conversations')
-                        .insert(newConv)
-                        .select()
-                        .limit(1);
-
-                      if (insertErr) {
-                        // If table doesn't exist or insert fails, fallback to notify
-                        await supabase.from('notifications').insert({
-                          user_document: employerDoc,
-                          type: 'new_message',
-                          message: `${user?.user_metadata?.full_name || user?.email || 'Un usuario'} desea iniciar una conversación sobre tu oferta ${job.id_offer}`
-                        });
-                        // Redirect to messages module (will show offer-based conversations if applicable)
-                        navigate('/app/mensajes');
-                        return;
-                      }
-
-                      const created = Array.isArray(insertData) ? insertData[0] : insertData;
-                      navigate(`/app/mensajes?conversation=${created.id || created.id_conversation || newConv.id}`);
-                    } catch (err) {
-                      console.error('Error iniciando conversación:', err);
-                      alert('No fue posible iniciar la conversación. Intenta más tarde.');
-                    }
-                  }}
-                >
-                  Enviar mensaje
-                </Button>
+                      navigate(`/app/mensajes?conversation=${id}`);
+                    }}
+                  >
+                    Enviar mensaje
+                  </Button>
+                )}
                 {userType === 'Estudiante' && job.document_employer !== userDoc && (
                   <Button
                     variant="primary"
@@ -982,7 +953,7 @@ export function MicroJobsPage() {
                     type="date"
                     name="date"
                     required
-                    min={getTodayDate()}
+                    min={getLocalDateString()}
                     value={formData.date}
                     onChange={handleInputChange}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none transition-all"
