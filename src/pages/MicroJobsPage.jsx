@@ -23,6 +23,10 @@ import {
 import { findOrCreateConversation } from '../services/conversations';
 import { useNavigate } from 'react-router-dom';
 
+// Vacantes que se dibujan por tanda. Con 500+ ofertas, pintarlas todas de una
+// vez hacía lenta la pantalla.
+const PAGE_SIZE = 20;
+
 const SORT_OPTIONS = [
   { value: 'date_desc', label: 'Más recientes' },
   { value: 'date_asc', label: 'Más antiguas' },
@@ -43,6 +47,12 @@ export function MicroJobsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [sortBy, setSortBy] = useState('date_desc');
+
+  // Paginación: la cuenta se guarda junto a los filtros con los que se pidió.
+  // Si cambia la categoría, la búsqueda o el orden, vuelve sola a la primera tanda.
+  const filterKey = `${activeCategory}|${searchQuery.trim().toLowerCase()}|${sortBy}`;
+  const [page, setPage] = useState({ key: filterKey, count: PAGE_SIZE });
+  const visibleCount = page.key === filterKey ? page.count : PAGE_SIZE;
 
   // Modal publicar
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -532,7 +542,7 @@ export function MicroJobsPage() {
             )}
           </Card>
         ) : (
-          filteredJobs.map(job => {
+          filteredJobs.slice(0, visibleCount).map(job => {
             const employerName = getEmployerName(job);
             const details = job.job_details || {};
             const catColor = getCategoryColor(details.category);
@@ -638,6 +648,23 @@ export function MicroJobsPage() {
               </Card>
             );
           })
+        )}
+
+        {!loading && filteredJobs.length > 0 && (
+          <div className="flex flex-col items-center gap-2 pt-2 pb-4">
+            <p className="text-xs text-slate-500">
+              Mostrando {Math.min(visibleCount, filteredJobs.length)} de {filteredJobs.length} vacantes
+            </p>
+            {visibleCount < filteredJobs.length && (
+              <Button
+                variant="outline"
+                id="load-more-jobs-btn"
+                onClick={() => setPage({ key: filterKey, count: visibleCount + PAGE_SIZE })}
+              >
+                Ver más vacantes
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
