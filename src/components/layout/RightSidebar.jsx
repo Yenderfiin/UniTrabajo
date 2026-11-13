@@ -40,7 +40,7 @@ export function RightSidebar({ isOpen, onClose }) {
           <div className="md:hidden pb-4 mb-4 border-b border-slate-100 flex flex-col space-y-2">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Vistas</span>
             <NavLink
-              to="/"
+              to="/app"
               end
               onClick={onClose}
               className={({ isActive }) => 

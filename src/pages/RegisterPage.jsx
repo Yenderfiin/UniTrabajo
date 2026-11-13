@@ -27,6 +27,7 @@ export function RegisterPage() {
   const [universities, setUniversities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
 
   useEffect(() => {
     async function loadUniversities() {
@@ -41,6 +42,7 @@ export function RegisterPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     // Supabase Auth guarda el correo en minúsculas; la tabla users debe coincidir
     // porque toda la aplicación busca el perfil con .eq('email', user.email).
@@ -111,7 +113,7 @@ export function RegisterPage() {
     }
 
     // 1. Auth Signup (guardamos el documento en la metadata)
-    const { error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password: formData.password,
       options: {
@@ -170,6 +172,14 @@ export function RegisterPage() {
       return;
     }
 
+    // Con la confirmación de correo activa en Supabase, signUp no abre sesión.
+    // Navegar a /app rebotaba a /login sin explicar nada.
+    if (!authData?.session) {
+      setSuccessMsg(`Cuenta creada. Te enviamos un enlace de confirmación a ${email}. Ábrelo y luego inicia sesión.`);
+      setLoading(false);
+      return;
+    }
+
     navigate('/app');
   };
 
@@ -195,6 +205,13 @@ export function RegisterPage() {
       {errorMsg && (
         <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4 break-words">
           {errorMsg}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 p-3 rounded-md text-sm mb-4 break-words">
+          {successMsg}{' '}
+          <Link to="/login" className="font-semibold underline">Ir a iniciar sesión</Link>
         </div>
       )}
 

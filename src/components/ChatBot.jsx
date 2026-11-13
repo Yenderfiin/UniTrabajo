@@ -133,7 +133,7 @@ export default function ChatBot() {
 
       {/* Ventana del chat */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 h-[500px] bg-white rounded-lg shadow-2xl flex flex-col z-50 overflow-hidden">
+        <div className="fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[500px] max-h-[calc(100dvh-7rem)] bg-white rounded-lg shadow-2xl flex flex-col z-50 overflow-hidden">
           {/* Encabezado */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export default function ChatBot() {
                       : 'bg-gray-200 text-gray-900 rounded-bl-none'
                   }`}
                 >
-                  <p className="text-sm">{msg.text}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
                   <span
                     className={`text-xs mt-1 block ${
                       msg.type === 'user'

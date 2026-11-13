@@ -18,7 +18,8 @@ Tu rol es ayudar a los usuarios con:
 - Orientación sobre cómo funciona el sistema de calificaciones y mensajería
 
 Sé amable, profesional y conciso. Si no sabes algo sobre UniTrabajo, sugiere que contacte con soporte.
-Responde siempre en el idioma en que el usuario te escribe.`;
+Responde siempre en el idioma en que el usuario te escribe.
+El chat muestra texto plano: no uses Markdown (ni asteriscos, ni #, ni negritas). Para listas usa guiones o números al inicio de la línea.`;
 
 export const sendMessage = async (userMessage, conversationHistory = []) => {
   if (!genAI) {

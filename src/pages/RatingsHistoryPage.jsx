@@ -209,7 +209,7 @@ export function RatingsHistoryPage() {
                 <div className="text-4xl font-bold text-yellow-600">{averageScore}</div>
                 <div className="space-y-2">
                   <div className="flex gap-1">{renderStars(Math.round(averageScore))}</div>
-                  <p className="text-xs text-slate-600">Basado en {ratingCount} calificación{ratingCount !== 1 ? 'es' : ''}</p>
+                  <p className="text-xs text-slate-600">Basado en {ratingCount} {ratingCount !== 1 ? 'calificaciones' : 'calificación'}</p>
                 </div>
               </div>
             </div>
@@ -251,8 +251,8 @@ export function RatingsHistoryPage() {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Sin calificaciones aún</h2>
           <p className="text-slate-500 text-sm">
             {activeTab === 'received'
-              ? 'Aún no has recibido calificaciones. Completa vacantes o viajes para que otros usuarios te califiquen.'
-              : 'Aún no has emitido calificaciones. Finaliza vacantes o viajes para calificar a otros usuarios.'}
+              ? 'Aún no has recibido calificaciones. Completa vacantes para que otros usuarios te califiquen.'
+              : 'Aún no has emitido calificaciones. Finaliza vacantes para calificar a otros usuarios.'}
           </p>
         </Card>
       ) : ratingsList.length === 0 ? (

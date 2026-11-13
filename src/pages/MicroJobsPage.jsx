@@ -11,6 +11,7 @@ import {
   getEmployerName,
   getInitials,
   parseDescription,
+  buildDescription,
   JOB_CATEGORIES,
   MICROJOB_TYPES,
   OPEN_OFFER_STATUSES,
@@ -33,6 +34,7 @@ export function MicroJobsPage() {
   const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [userDoc, setUserDoc] = useState(null);
   const [userType, setUserType] = useState(null);
   const [myApplications, setMyApplications] = useState([]);
@@ -62,7 +64,7 @@ export function MicroJobsPage() {
 
   const fetchJobs = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('offers')
       .select(`
         id_offer,
@@ -77,8 +79,12 @@ export function MicroJobsPage() {
       .in('status', OPEN_OFFER_STATUSES)
       .order('create_at', { ascending: false });
 
-    if (data) {
-      setJobs(data.map(job => ({ ...job, parsed: parseDescription(job.description) })));
+    if (error) {
+      console.error('Error al cargar las vacantes:', error);
+      setLoadError('No fue posible cargar las vacantes. Revisa tu conexión e intenta de nuevo.');
+    } else {
+      setLoadError(null);
+      setJobs((data || []).map(job => ({ ...job, parsed: parseDescription(job.description) })));
     }
     setLoading(false);
   };
@@ -200,17 +206,29 @@ export function MicroJobsPage() {
     setErrorMsg(null);
 
     try {
-      const fullDescription = `Título: ${formData.title}\n\n${formData.description}\n\n📍 Ubicación: ${formData.location}\n📅 Fecha: ${formData.date}`;
-      const idOffer = `OFR-${Math.floor(10000 + Math.random() * 90000)}`;
+      const fullDescription = buildDescription(
+        formData.title.trim(),
+        formData.description.trim(),
+        formData.location.trim(),
+        formData.date
+      );
 
-      const { error: offerError } = await supabase.from('offers').insert({
-        id_offer: idOffer,
-        type_offer: 'Trabajo',
-        description: fullDescription,
-        status: 'Pendiente',
-        document_employer: userDoc,
-        document_employee: userDoc
-      });
+      // El id es aleatorio (OFR-12345). Si choca con uno existente (23505) se
+      // genera otro en vez de mostrar un error de llave duplicada.
+      let idOffer = null;
+      let offerError = null;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        idOffer = `OFR-${Math.floor(10000 + Math.random() * 90000)}`;
+        ({ error: offerError } = await supabase.from('offers').insert({
+          id_offer: idOffer,
+          type_offer: 'Trabajo',
+          description: fullDescription,
+          status: 'Pendiente',
+          document_employer: userDoc,
+          document_employee: userDoc
+        }));
+        if (offerError?.code !== '23505') break;
+      }
 
       if (offerError) throw offerError;
 
@@ -221,7 +239,11 @@ export function MicroJobsPage() {
         hours: formData.hours ? Number(formData.hours) : null
       });
 
-      if (detailsError) throw detailsError;
+      if (detailsError) {
+        // Sin job_details la vacante quedaría publicada sin categoría ni pago.
+        await supabase.from('offers').delete().eq('id_offer', idOffer);
+        throw detailsError;
+      }
 
       // Limpiar y cerrar
       setIsModalOpen(false);
@@ -465,6 +487,13 @@ export function MicroJobsPage() {
             </button>
           )}
         </div>
+
+        {loadError && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200 flex items-center justify-between gap-3">
+            <span>{loadError}</span>
+            <button onClick={fetchJobs} className="shrink-0 font-semibold underline">Reintentar</button>
+          </div>
+        )}
 
         {/* Lista de vacantes */}
         {loading ? (
@@ -858,7 +887,7 @@ export function MicroJobsPage() {
           >
             <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl z-10">
               <h2 className="text-xl font-bold text-slate-800">Publicar Micro-trabajo</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button type="button" onClick={() => { setIsModalOpen(false); setErrorMsg(null); }} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>

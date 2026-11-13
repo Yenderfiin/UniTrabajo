@@ -199,6 +199,8 @@ export function MessagesPage() {
     }
     // En móvil se muestra primero la lista; en escritorio se abre la más reciente
     if (!selectedId && isDesktop()) setSelectedId(conversations[0].id);
+    // selectedId queda fuera a propósito: al volver a la lista en móvil no debe reabrirse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations, location.search]);
 
   const selectedConv = useMemo(
@@ -309,7 +311,10 @@ export function MessagesPage() {
 
     if (insertErr) {
       setMessages(prev => prev.filter(m => m.id !== tmpId));
+      setText(trimmed);
+      setError('No se pudo enviar el mensaje. Revisa tu conexión e intenta de nuevo.');
     } else {
+      setError(null);
       setMessages(prev => prev.map(m => (m.id === tmpId ? saved : m)));
       await supabase
         .from('conversations')

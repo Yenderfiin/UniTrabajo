@@ -437,6 +437,8 @@ export function MyOffersPage() {
     }
 
     setRatingOffer(offer);
+    setRatedWorker(null);
+    setExistingRating(null); // no arrastrar la calificación de otra vacante
     setRatingFormData({ score: 5, comment: '' });
     setRatingMsg(null);
     setIsRatingModalOpen(true);
@@ -715,7 +717,7 @@ export function MyOffersPage() {
         <div className="text-5xl mb-4">💼</div>
         <h2 className="text-xl font-bold text-slate-800 mb-2">Aún no tienes vacantes publicadas</h2>
         <p className="text-slate-500 text-sm mb-6">Aquí aparecerán todas las ofertas de trabajo que hayas publicado para la comunidad universitaria.</p>
-        <Button variant="primary" onClick={() => window.location.href = '/app'}>
+        <Button variant="primary" onClick={() => navigate('/app')}>
           Ver bolsa de empleo
         </Button>
       </div>
@@ -1409,7 +1411,7 @@ export function MyOffersPage() {
                       ? new Date(app.created_at).toLocaleDateString('es-CO', {
                           day: 'numeric', month: 'long', year: 'numeric'
                         })
-                      : 'Fecha desconocida';
+                      : null;
                     const isOfferPending = isOfferOpen(applicantsOffer?.status || 'Pendiente');
                     const isAccepted = isAppAccepted(app.app_status);
                     const isRejected = isAppRejected(app.app_status);
@@ -1466,12 +1468,14 @@ export function MyOffersPage() {
                                 {app.document}
                               </span>
                             )}
+                            {appliedDate && (
                             <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                               Postulado el {appliedDate}
                             </span>
+                            )}
 
                             {/* Acciones */}
                             <div className="ml-auto flex items-center gap-2">
