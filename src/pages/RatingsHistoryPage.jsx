@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { getCategoryIcon, parseDescription } from '../utils/helpers';
 
 export function RatingsHistoryPage() {
   const { user } = useAuth();
@@ -54,7 +54,8 @@ export function RatingsHistoryPage() {
             offers (
               type_offer,
               description,
-              create_at
+              create_at,
+              job_details ( category )
             )
           `)
           .eq('document_rated', currentUserDoc);
@@ -72,7 +73,8 @@ export function RatingsHistoryPage() {
             offers (
               type_offer,
               description,
-              create_at
+              create_at,
+              job_details ( category )
             )
           `)
           .eq('document_rater', currentUserDoc);
@@ -277,6 +279,9 @@ export function RatingsHistoryPage() {
                 })
               : 'Fecha desconocida';
             const personName = getOtherPersonName(rating);
+            // La descripción guarda título, ubicación y fecha en un solo texto (buildDescription).
+            const parsed = parseDescription(rating.offers?.description);
+            const category = rating.offers?.job_details?.category;
 
             return (
               <Card key={`${rating.id_offer}-${index}`} className="p-5 hover:shadow-md transition-all border-slate-200">
@@ -307,11 +312,23 @@ export function RatingsHistoryPage() {
                     </div>
                   )}
 
-                  {/* Contexto */}
-                  {rating.offers?.description && (
+                  {/* Servicio calificado */}
+                  {rating.offers && (
                     <div className="border-t border-slate-200 pt-3">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Descripción del servicio</p>
-                      <p className="text-sm text-slate-600 line-clamp-2">{rating.offers.description}</p>
+                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Servicio</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        <span aria-hidden="true">{getCategoryIcon(category)}</span>{' '}
+                        {parsed.title || category || 'Trabajo General'}
+                      </p>
+                      {parsed.description && (
+                        <p className="text-sm text-slate-600 line-clamp-2 mt-1">{parsed.description}</p>
+                      )}
+                      {(parsed.location || parsed.date) && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
+                          {parsed.location && <span>📍 {parsed.location}</span>}
+                          {parsed.date && <span>📅 {parsed.date}</span>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
