@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { getCategoryIcon, parseDescription } from '../utils/helpers';
 
 export function RatingsHistoryPage() {
   const { user } = useAuth();
@@ -54,7 +54,8 @@ export function RatingsHistoryPage() {
             offers (
               type_offer,
               description,
-              create_at
+              create_at,
+              job_details ( category )
             )
           `)
           .eq('document_rated', currentUserDoc);
@@ -72,7 +73,8 @@ export function RatingsHistoryPage() {
             offers (
               type_offer,
               description,
-              create_at
+              create_at,
+              job_details ( category )
             )
           `)
           .eq('document_rater', currentUserDoc);
@@ -160,12 +162,8 @@ export function RatingsHistoryPage() {
     return `${userData.frt_name || ''} ${userData.scd_name ? userData.scd_name + ' ' : ''}${userData.frt_last_name || ''} ${userData.scd_last_name || ''}`.trim() || 'Usuario anónimo';
   };
 
-  const getOfferType = (rating) => {
-    const typeOffer = rating.offers?.type_offer;
-    if (typeOffer === 'Transporte') {
-      return { label: 'Ruta de Transporte', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-    }
-    return { label: 'Vacante de Trabajo', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+  const getOfferType = () => {
+    return { label: 'Micro-Trabajo', color: 'bg-purple-50 text-purple-700 border-purple-200' };
   };
 
   const renderStars = (score) => {
@@ -213,7 +211,7 @@ export function RatingsHistoryPage() {
                 <div className="text-4xl font-bold text-yellow-600">{averageScore}</div>
                 <div className="space-y-2">
                   <div className="flex gap-1">{renderStars(Math.round(averageScore))}</div>
-                  <p className="text-xs text-slate-600">Basado en {ratingCount} calificación{ratingCount !== 1 ? 'es' : ''}</p>
+                  <p className="text-xs text-slate-600">Basado en {ratingCount} {ratingCount !== 1 ? 'calificaciones' : 'calificación'}</p>
                 </div>
               </div>
             </div>
@@ -255,8 +253,8 @@ export function RatingsHistoryPage() {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Sin calificaciones aún</h2>
           <p className="text-slate-500 text-sm">
             {activeTab === 'received'
-              ? 'Aún no has recibido calificaciones. Completa vacantes o viajes para que otros usuarios te califiquen.'
-              : 'Aún no has emitido calificaciones. Finaliza vacantes o viajes para calificar a otros usuarios.'}
+              ? 'Aún no has recibido calificaciones. Completa vacantes para que otros usuarios te califiquen.'
+              : 'Aún no has emitido calificaciones. Finaliza vacantes para calificar a otros usuarios.'}
           </p>
         </Card>
       ) : ratingsList.length === 0 ? (
@@ -272,7 +270,7 @@ export function RatingsHistoryPage() {
       ) : (
         <div className="space-y-4">
           {ratingsList.map((rating, index) => {
-            const offerType = getOfferType(rating);
+            const offerType = getOfferType();
             const ratingDate = rating.offers?.create_at
               ? new Date(rating.offers.create_at).toLocaleDateString('es-CO', {
                   year: 'numeric',
@@ -281,6 +279,9 @@ export function RatingsHistoryPage() {
                 })
               : 'Fecha desconocida';
             const personName = getOtherPersonName(rating);
+            // La descripción guarda título, ubicación y fecha en un solo texto (buildDescription).
+            const parsed = parseDescription(rating.offers?.description);
+            const category = rating.offers?.job_details?.category;
 
             return (
               <Card key={`${rating.id_offer}-${index}`} className="p-5 hover:shadow-md transition-all border-slate-200">
@@ -293,7 +294,7 @@ export function RatingsHistoryPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border inline-flex items-center gap-1 ${offerType.color}`}>
-                        {offerType.label === 'Ruta de Transporte' ? '🚗' : '💼'} {offerType.label}
+                        💼 {offerType.label}
                       </span>
                     </div>
                   </div>
@@ -311,11 +312,23 @@ export function RatingsHistoryPage() {
                     </div>
                   )}
 
-                  {/* Contexto */}
-                  {rating.offers?.description && (
+                  {/* Servicio calificado */}
+                  {rating.offers && (
                     <div className="border-t border-slate-200 pt-3">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Descripción del servicio</p>
-                      <p className="text-sm text-slate-600 line-clamp-2">{rating.offers.description}</p>
+                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Servicio</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        <span aria-hidden="true">{getCategoryIcon(category)}</span>{' '}
+                        {parsed.title || category || 'Trabajo General'}
+                      </p>
+                      {parsed.description && (
+                        <p className="text-sm text-slate-600 line-clamp-2 mt-1">{parsed.description}</p>
+                      )}
+                      {(parsed.location || parsed.date) && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
+                          {parsed.location && <span>📍 {parsed.location}</span>}
+                          {parsed.date && <span>📅 {parsed.date}</span>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

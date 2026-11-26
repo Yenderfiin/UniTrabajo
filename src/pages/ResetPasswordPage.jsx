@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export function ResetPasswordPage() {
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -15,14 +16,25 @@ export function ResetPasswordPage() {
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMsg(null);
     setMessage(null);
 
+    if (password.length < 6) {
+      setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setErrorMsg(error.message);
+      setErrorMsg(error.message.includes('different from the old')
+        ? 'La nueva contraseña debe ser distinta de la anterior.'
+        : 'No se pudo actualizar la contraseña. Solicita un nuevo enlace de recuperación.');
     } else {
       setMessage('Contraseña actualizada correctamente. Redirigiendo...');
       setTimeout(() => {
@@ -71,7 +83,18 @@ export function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                placeholder="••••••••"
+                placeholder="Mín. 6 caracteres"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Contraseña</label>
+              <input 
+                type="password" 
+                required 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                placeholder="Repite la contraseña"
               />
             </div>
             

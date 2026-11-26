@@ -53,6 +53,7 @@ export function NotificationsPanel({ isOpen, onClose, onUnreadCountChange }) {
           .eq('email', user.email)
           .single();
         if (data) setUserDoc(data.document);
+        else setLoading(false);
       }
     }
     fetchUserDoc();
@@ -177,6 +178,12 @@ export function NotificationsPanel({ isOpen, onClose, onUnreadCountChange }) {
       'job_completed': { icon: '🎉', bg: 'bg-purple-50', text: 'text-purple-600' },
       'new_message': { icon: '💬', bg: 'bg-cyan-50', text: 'text-cyan-600' },
       'rating_received': { icon: '⭐', bg: 'bg-yellow-50', text: 'text-yellow-600' },
+      // Tipos que la aplicación escribe hoy en la tabla notifications
+      'application_accepted': { icon: '✅', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+      'offer_closed': { icon: '🔒', bg: 'bg-orange-50', text: 'text-orange-600' },
+      'offer_finalized': { icon: '🎉', bg: 'bg-purple-50', text: 'text-purple-600' },
+      'worker_rated': { icon: '⭐', bg: 'bg-yellow-50', text: 'text-yellow-600' },
+      'employer_rated': { icon: '⭐', bg: 'bg-yellow-50', text: 'text-yellow-600' },
       'system': { icon: '🔔', bg: 'bg-slate-50', text: 'text-slate-600' },
     };
     return icons[type] || icons['system'];

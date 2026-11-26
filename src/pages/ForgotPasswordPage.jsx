@@ -16,12 +16,14 @@ export function ForgotPasswordPage() {
     setErrorMsg(null);
     setMessage(null);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {
-      setErrorMsg(error.message);
+      setErrorMsg(error.message.toLowerCase().includes('rate limit')
+        ? 'Ya se envió un enlace hace poco. Espera unos minutos antes de pedir otro.'
+        : 'No se pudo enviar el enlace. Verifica el correo e intenta de nuevo.');
     } else {
       setMessage('Te hemos enviado un enlace para restablecer tu contraseña. Revisa tu correo electrónico.');
     }

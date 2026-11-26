@@ -5,7 +5,7 @@ import { NotificationsPanel } from '../ui/NotificationsPanel';
 import { supabase } from '../../services/supabaseClient';
 
 export function Navbar({ toggleSidebar }) {
-  const { user, userType, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -116,16 +116,6 @@ export function Navbar({ toggleSidebar }) {
             >
               Micro-trabajos
             </NavLink>
-            {userType === 'Estudiante' && (
-              <NavLink
-                to="/app/transporte"
-                className={({ isActive }) => 
-                  `px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive ? 'text-brand-blue border-b-2 border-brand-blue' : 'text-slate-500 hover:text-slate-900'}`
-                }
-              >
-                Transporte Compartido
-              </NavLink>
-            )}
             <NavLink
               to="/app/mensajes"
               className={({ isActive }) => 
@@ -252,7 +242,7 @@ export function Navbar({ toggleSidebar }) {
               isLandingPage ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <svg className="h-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               {isMobileMenuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (

@@ -22,6 +22,7 @@ export function NotificationsPage() {
           .eq('email', user.email)
           .single();
         if (data) setUserDoc(data.document);
+        else setLoading(false);
       }
     }
     fetchUserDoc();
@@ -121,6 +122,12 @@ export function NotificationsPage() {
       'job_completed': { icon: '🎉', bg: 'bg-purple-50', border: 'border-purple-200' },
       'new_message': { icon: '💬', bg: 'bg-cyan-50', border: 'border-cyan-200' },
       'rating_received': { icon: '⭐', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+      // Tipos que la aplicación escribe hoy en la tabla notifications
+      'application_accepted': { icon: '✅', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+      'offer_closed': { icon: '🔒', bg: 'bg-orange-50', border: 'border-orange-200' },
+      'offer_finalized': { icon: '🎉', bg: 'bg-purple-50', border: 'border-purple-200' },
+      'worker_rated': { icon: '⭐', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+      'employer_rated': { icon: '⭐', bg: 'bg-yellow-50', border: 'border-yellow-200' },
       'system': { icon: '🔔', bg: 'bg-slate-50', border: 'border-slate-200' },
     };
     return icons[type] || icons['system'];

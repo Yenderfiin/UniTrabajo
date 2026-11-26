@@ -14,3 +14,182 @@
     font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Fira Sans", Ubuntu, Oxygen, "Oxygen Sans", Cantarell, "Droid Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Lucida Grande", Helvetica, Arial, sans-serif;
   }
 }
+
+/* ═══════════════════════════════════════════════
+   ACCESSIBILITY — Dark Mode
+   ═══════════════════════════════════════════════ */
+html.acc-dark body {
+  background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+}
+
+html.acc-dark .bg-white,
+html.acc-dark .bg-gray-50,
+html.acc-dark .bg-gray-100 {
+  background-color: #16213e !important;
+}
+
+html.acc-dark .bg-brand-surface {
+  background-color: #16213e !important;
+}
+
+html.acc-dark .bg-slate-50,
+html.acc-dark .bg-slate-100 {
+  background-color: #1a1a2e !important;
+}
+
+/* Cards, surfaces, modals */
+html.acc-dark [class*="bg-white"],
+html.acc-dark [class*="bg-gray-5"],
+html.acc-dark [class*="bg-gray-1"] {
+  background-color: #1e2a4a !important;
+}
+
+/* Text colors */
+html.acc-dark .text-gray-900,
+html.acc-dark .text-gray-800,
+html.acc-dark .text-gray-700,
+html.acc-dark .text-slate-900,
+html.acc-dark .text-slate-800,
+html.acc-dark .text-slate-700,
+html.acc-dark .text-black {
+  color: #e8e8e8 !important;
+}
+
+html.acc-dark .text-gray-600,
+html.acc-dark .text-gray-500,
+html.acc-dark .text-slate-600,
+html.acc-dark .text-slate-500 {
+  color: #b0b0b0 !important;
+}
+
+html.acc-dark .text-gray-400,
+html.acc-dark .text-slate-400 {
+  color: #8a8a8a !important;
+}
+
+/* Borders */
+html.acc-dark [class*="border-gray"],
+html.acc-dark [class*="border-slate"] {
+  border-color: #2a3a5c !important;
+}
+
+/* Input fields */
+html.acc-dark input,
+html.acc-dark textarea,
+html.acc-dark select {
+  background-color: #0f1a30 !important;
+  color: #e0e0e0 !important;
+  border-color: #2a3a5c !important;
+}
+
+html.acc-dark input::placeholder,
+html.acc-dark textarea::placeholder {
+  color: #6a7a9a !important;
+}
+
+/* Shadows */
+html.acc-dark [class*="shadow"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ── Keep the accessibility widget panel itself with its own colors ── */
+html.acc-dark .acc-widget-panel .acc-widget-body {
+  background-color: #1e2a4a !important;
+}
+
+html.acc-dark .acc-widget-panel .acc-widget-option {
+  background-color: #16213e !important;
+  border-color: #2a3a5c !important;
+}
+
+html.acc-dark .acc-widget-panel .acc-widget-option:hover {
+  border-color: #4a5a7c !important;
+}
+
+html.acc-dark .acc-widget-panel .acc-widget-label {
+  color: #e0e0e0 !important;
+}
+
+html.acc-dark .acc-widget-panel .acc-widget-status {
+  color: #8a9aba !important;
+}
+
+html.acc-dark .acc-widget-panel .acc-widget-footer {
+  background-color: #16213e !important;
+  border-color: #2a3a5c !important;
+}
+
+
+/* ═══════════════════════════════════════════════
+   ACCESSIBILITY — High Contrast
+   ═══════════════════════════════════════════════ */
+html.acc-high-contrast body {
+  color: #000000 !important;
+}
+
+html.acc-high-contrast .text-gray-600,
+html.acc-high-contrast .text-gray-500,
+html.acc-high-contrast .text-gray-400,
+html.acc-high-contrast .text-slate-600,
+html.acc-high-contrast .text-slate-500,
+html.acc-high-contrast .text-slate-400 {
+  color: #000000 !important;
+}
+
+html.acc-high-contrast .text-gray-900,
+html.acc-high-contrast .text-gray-800,
+html.acc-high-contrast .text-gray-700,
+html.acc-high-contrast .text-slate-900,
+html.acc-high-contrast .text-slate-800,
+html.acc-high-contrast .text-slate-700 {
+  color: #000000 !important;
+}
+
+html.acc-high-contrast [class*="border"] {
+  border-color: #000000 !important;
+}
+
+html.acc-high-contrast a,
+html.acc-high-contrast button:not(.acc-widget-btn):not(.acc-widget-option):not(#accessibility-reset) {
+  text-decoration-thickness: 2px !important;
+}
+
+html.acc-high-contrast img {
+  filter: contrast(1.2) !important;
+}
+
+/* Dark + High Contrast combined */
+html.acc-dark.acc-high-contrast body {
+  color: #ffffff !important;
+}
+
+html.acc-dark.acc-high-contrast .text-gray-600,
+html.acc-dark.acc-high-contrast .text-gray-500,
+html.acc-dark.acc-high-contrast .text-gray-400,
+html.acc-dark.acc-high-contrast .text-slate-600,
+html.acc-dark.acc-high-contrast .text-slate-500,
+html.acc-dark.acc-high-contrast .text-slate-400 {
+  color: #ffffff !important;
+}
+
+html.acc-dark.acc-high-contrast [class*="border"] {
+  border-color: #ffffff !important;
+}
+
+
+/* ═══════════════════════════════════════════════
+   ACCESSIBILITY — Font Size
+   ═══════════════════════════════════════════════ */
+html.acc-font-lg body {
+  font-size: 118% !important;
+}
+
+html.acc-font-xl body {
+  font-size: 136% !important;
+}
+
+/* Smooth transition for font-size changes */
+html body {
+  transition: font-size 0.3s ease, background-color 0.4s ease, color 0.4s ease;
+}

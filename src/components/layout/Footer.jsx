@@ -15,7 +15,7 @@ export function Footer() {
               UniTrabajo
             </span>
             <p className="text-sm text-slate-400 leading-relaxed">
-              El ecosistema universitario diseñado para conectar a estudiantes con micro-trabajos flexibles y rutas de transporte seguro.
+              El ecosistema universitario diseñado para conectar a estudiantes con micro-trabajos flexibles adaptados a sus horarios.
             </p>
           </div>
 
@@ -27,10 +27,10 @@ export function Footer() {
                 <Link to="/login" className="hover:text-white transition-colors">Micro-Trabajos</Link>
               </li>
               <li>
-                <Link to="/login" className="hover:text-white transition-colors">Transporte Compartido</Link>
+                <Link to="/login" className="hover:text-white transition-colors">Verificación de Cuentas</Link>
               </li>
               <li>
-                <Link to="/login" className="hover:text-white transition-colors">Verificación de Cuentas</Link>
+                <Link to="/login" className="hover:text-white transition-colors">Mensajería y Calificaciones</Link>
               </li>
             </ul>
           </div>

@@ -4,9 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { formatDate, formatPayment, getCategoryIcon, getCategoryColor, parseDescription } from '../utils/helpers';
+import { useNavigate } from 'react-router-dom';
 
 export function MyApplicationsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
@@ -106,6 +108,8 @@ export function MyApplicationsPage() {
     }
 
     setRatingEmployerApp(app);
+    setRatedEmployer(null);
+    setExistingEmployerRating(null); // no arrastrar la calificación de otra vacante
     setEmployerRatingFormData({ score: 5, comment: '' });
     setEmployerRatingMsg(null);
     setIsRatingEmployerModalOpen(true);
@@ -268,7 +272,7 @@ export function MyApplicationsPage() {
         <div className="text-5xl mb-4">📝</div>
         <h2 className="text-xl font-bold text-slate-800 mb-2">Aún no te has postulado</h2>
         <p className="text-slate-500 text-sm mb-6">Aquí aparecerán todas las vacantes de trabajo a las que te hayas postulado dentro de la comunidad universitaria.</p>
-        <Button variant="primary" onClick={() => window.location.href = '/app'}>
+        <Button variant="primary" onClick={() => navigate('/app')}>
           Ver bolsa de empleo
         </Button>
       </div>

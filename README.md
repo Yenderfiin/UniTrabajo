@@ -1,15 +1,14 @@
 # UniTrabajo
 
-UniTrabajo es una plataforma web desarrollada con React, Vite y Supabase que conecta estudiantes universitarios con oportunidades de micro-trabajos y servicios de transporte compartido dentro de la comunidad universitaria.
+UniTrabajo es una plataforma web desarrollada con React, Vite y Supabase que conecta a estudiantes universitarios con micro-trabajos publicados por otros miembros de la comunidad universitaria.
 
 ## Descripción del proyecto
 
-La plataforma busca solucionar dos problemáticas frecuentes entre los estudiantes universitarios:
+Un estudiante sin experiencia laboral rara vez consigue trabajo por horas compatible con su horario de clases. En UniTrabajo cualquier usuario publica una vacante con pago, fecha y ubicación, y los estudiantes se postulan desde el listado.
 
-* La dificultad para acceder a oportunidades laborales debido a la falta de experiencia previa.
-* Los altos costos de transporte para desplazarse hacia la universidad.
+El empleador elige a un candidato, la vacante pasa a "En curso" y al finalizarla ambas partes se califican de 1 a 5 estrellas. La aplicación incluye mensajería en tiempo real entre empleador y candidato, notificaciones, un asistente virtual con Gemini y un panel de accesibilidad (modo oscuro, alto contraste y tamaño de texto).
 
-Para ello, UniTrabajo integra un módulo de publicación y búsqueda de micro-trabajos, así como un sistema de transporte compartido entre estudiantes.
+El módulo de transporte compartido se retiró en la versión del 29 de octubre de 2026.
 
 ---
 
@@ -82,7 +81,10 @@ Agregar las siguientes variables utilizando las credenciales proporcionadas por 
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu_clave_publica
+VITE_GOOGLE_AI_API_KEY=tu_clave_de_google_ai_studio
 ```
+
+La última variable solo la usa el asistente virtual; sin ella, el resto de la aplicación funciona y el chat avisa que no está configurado.
 
 Importante:
 
@@ -134,22 +136,46 @@ npm run preview
 npm run lint
 ```
 
+### Ejecutar pruebas unitarias
+
+```bash
+npm test
+```
+
+Las pruebas están en `tests/helpers.test.js` y usan el runner nativo de Node (`node:test`), así que no requieren dependencias adicionales.
+
+---
+
+## Scripts SQL
+
+Los scripts de la carpeta `sql/` se ejecutan a mano en el SQL Editor de Supabase. Después de desplegar la versión del 29 de octubre de 2026 hay que correr, en este orden:
+
+1. `046_remove_transport_tables.sql`: borra los datos del módulo de transporte retirado.
+2. `047_bloquear_lectura_anonima.sql`: quita al rol `anon` la lectura de las tablas con datos personales y crea la función `documento_registrado` que usa el registro.
+3. `048_integridad_estados.sql`: unifica los estados de las postulaciones y agrega restricciones de integridad.
+
+`000_modelo_relacional.sql` documenta el modelo y no se ejecuta sobre la base actual. La carpeta `nosql/` contiene el modelo alterno en MongoDB con sus datos sintéticos y consultas de prueba.
+
 ---
 
 ## Estructura del proyecto
 
 ```text
 src/
-│
 ├── assets/
 ├── components/
-├── pages/
-├── services/
-├── hooks/
-├── context/
+│   ├── layout/      Navbar, menú lateral, rutas protegidas
+│   └── ui/          Botón, tarjeta, panel de notificaciones
+├── contexts/        AuthContext y AccessibilityContext
+├── pages/           Una página por ruta
+├── services/        Clientes de Supabase y Google AI, conversaciones
+├── utils/           helpers.js (fechas, estados, formato)
 ├── App.jsx
 └── main.jsx
 
+tests/               Pruebas unitarias de helpers.js
+sql/                 Scripts para el SQL Editor de Supabase
+nosql/               Modelo alterno en MongoDB
 public/
 
 .env
@@ -212,6 +238,12 @@ Reiniciar la aplicación:
 ```bash
 npm run dev
 ```
+
+### La consola muestra ERR_NAME_NOT_RESOLVED
+
+El navegador no encuentra el dominio `<proyecto>.supabase.co`. Supabase pausa los proyectos del plan gratuito tras una semana sin actividad y su dominio deja de existir hasta que se reactivan. El responsable del proyecto debe entrar a https://supabase.com/dashboard y pulsar "Restore project". La restauración tarda unos minutos.
+
+Si el proyecto fue eliminado, hay que crear uno nuevo, cargar el esquema de `sql/000_modelo_relacional.sql` y actualizar las dos variables de Supabase en `.env`.
 
 ---
 
